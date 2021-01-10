@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    <PackageReference Include="xunit" Version="2.4.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.0" />
+    <PackageReference Include="coverlet.collector" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\managed\JavaScript.Eval\JavaScript.Eval.csproj" />
+  </ItemGroup>
+
+  <Target Name="test" BeforeTargets="BeforeBuild">
+    <Exec Command="cargo build --manifest-path ../../../src/native/JavaScript_Eval_Native/Cargo.toml --target-dir bin/Debug/netcoreapp3.1/" />
+    <Exec Command="cp bin/Debug/netcoreapp3.1/debug/libjavascript_eval_native.so bin/Debug/netcoreapp3.1/." />
+  </Target>
+
+</Project>

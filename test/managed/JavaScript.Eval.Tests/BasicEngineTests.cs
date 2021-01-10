@@ -21,9 +21,9 @@ namespace JavaScript.Eval.Tests
 
             engine.Eval("function add(x,y) { return x + y; }");
 
-            var result = engine.Call("add", new Primitive { number_value = 1, number_value_set = 1 }, new Primitive { number_value = 1, number_value_set = 1 });
+            var result = engine.Call("add", 1, 1);
 
-            Assert.NotNull(result);
+            Assert.Equal("2", result);
         }
     }
 }

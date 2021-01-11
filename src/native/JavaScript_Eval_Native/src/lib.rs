@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-use v8facade::{FunctionParameter, Output, V8Facade};
+use v8facade::{FunctionParameter, JavaScriptResult, Output, V8Facade};
 
 mod v8facade;
 
@@ -54,7 +54,12 @@ pub unsafe extern "C" fn exec(
     let result = instance.run(script).unwrap();
 
     match result {
-        Output::Result(r) => CString::new(r).unwrap().into_raw(),
+        Output::Result(r) => {
+            match r {
+                JavaScriptResult::StringValue(s) => CString::new(s).unwrap().into_raw(),
+                _ => CString::new("complete this").unwrap().into_raw()
+            }
+        },  
         Output::Error(e) => CString::new(e).unwrap().into_raw(),
     }
 }
@@ -79,7 +84,14 @@ pub unsafe extern "C" fn call(
     let result = instance.call(func_name, parameters).unwrap();
 
     match result {
-        Output::Result(r) => CString::new(r).unwrap().into_raw(),
+        Output::Result(r) => {
+            match r {
+                JavaScriptResult::StringValue(s) => CString::new(s).unwrap().into_raw(),
+                JavaScriptResult::ArrayValue(av) => CString::new(av).unwrap().into_raw(),
+                JavaScriptResult::ObjectValue(ov) => CString::new(ov).unwrap().into_raw(),
+                _ => CString::new("complete this").unwrap().into_raw()
+            }
+        },  
         Output::Error(e) => CString::new(e).unwrap().into_raw(),
     }
 }

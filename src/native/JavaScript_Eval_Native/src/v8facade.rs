@@ -1,9 +1,4 @@
-use std::{
-    convert::TryFrom,
-    ffi::CStr,
-    sync::{mpsc::RecvError},
-    thread::JoinHandle,
-};
+use std::{convert::TryFrom, ffi::CStr, sync::mpsc::RecvError, thread::JoinHandle};
 
 use std::{
     sync::{mpsc, Once},
@@ -29,7 +24,7 @@ enum Input {
 }
 
 pub enum Output {
-    Result(String),
+    Result(JavaScriptResult),
     Error(String),
 }
 
@@ -45,6 +40,17 @@ pub enum FunctionParameter {
     NumberValue(f64),
     BigIntValue(i64),
     BoolValue(bool),
+}
+
+pub enum JavaScriptResult {
+    StringValue(String),
+    NumberValue(f64),
+    BigIntValue(i64),
+    BoolValue(bool),
+
+    // These will be tossed back as JSON strings.
+    ArrayValue(String),
+    ObjectValue(String),
 }
 
 impl FunctionParameter {
@@ -120,6 +126,7 @@ impl V8Facade {
                         let result = result.to_string(scope).unwrap();
 
                         let output = result.to_rust_string_lossy(scope);
+                        let output = JavaScriptResult::StringValue(output);
 
                         tx_out.send(Output::Result(output)).unwrap();
                     }
@@ -153,8 +160,7 @@ impl V8Facade {
                                     FunctionParameter::SymbolValue(v) => {
                                         let desc = v8::String::new(scope, v.as_str());
 
-                                        v8::Symbol::new(scope, desc)
-                                            .into()
+                                        v8::Symbol::new(scope, desc).into()
                                     }
                                 }
                             })
@@ -163,11 +169,36 @@ impl V8Facade {
                         let args = args.as_slice();
 
                         let result = func.call(scope, global.into(), args).unwrap();
-                        let result = result.to_string(scope).unwrap();
 
-                        let output = result.to_rust_string_lossy(scope);
+                        let result = if result.is_number() {
+                            let number_result = result.to_number(scope).unwrap();
+                            JavaScriptResult::NumberValue(number_result.value())
+                        } else if result.is_big_int() {
+                            let bigint_result = result.to_big_int(scope).unwrap();
+                            JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
+                        } else if result.is_boolean() {
+                            let bool_result = result.to_boolean(scope);
+                            JavaScriptResult::BoolValue(bool_result.boolean_value(scope))
+                        } else {
+                            let json = v8::String::new(scope, "JSON").unwrap();
+                            let json = v8::Local::from(json);
+                            let json = global.get(scope, json).unwrap();
+                            let json = v8::Local::<v8::Object>::try_from(json).unwrap();
+                            // let json = v8::Local::<v8::Function>::try_from(json).unwrap();
 
-                        tx_out.send(Output::Result(output)).unwrap();
+                            let stringify = v8::String::new(scope, "stringify").unwrap();
+                            let stringify = v8::Local::from(stringify);
+                            let stringify = json.get(scope, stringify).unwrap();
+                            let stringify = v8::Local::<v8::Function>::try_from(stringify).unwrap();
+
+                            let string_result =
+                                stringify.call(scope, global.into(), &[result]).unwrap();
+                            let string_result = string_result.to_string(scope).unwrap();
+
+                            JavaScriptResult::StringValue(string_result.to_rust_string_lossy(scope))
+                        };
+
+                        tx_out.send(Output::Result(result)).unwrap();
                     }
                 };
             }

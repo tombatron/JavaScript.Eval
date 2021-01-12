@@ -170,7 +170,10 @@ impl V8Facade {
 
                         let result = func.call(scope, global.into(), args).unwrap();
 
-                        let result = if result.is_number() {
+                        let result = if result.is_string() {
+                            let string_result = result.to_string(scope).unwrap();
+                            JavaScriptResult::StringValue(string_result.to_rust_string_lossy(scope))
+                        } else if result.is_number() {
                             let number_result = result.to_number(scope).unwrap();
                             JavaScriptResult::NumberValue(number_result.value())
                         } else if result.is_big_int() {
@@ -184,7 +187,6 @@ impl V8Facade {
                             let json = v8::Local::from(json);
                             let json = global.get(scope, json).unwrap();
                             let json = v8::Local::<v8::Object>::try_from(json).unwrap();
-                            // let json = v8::Local::<v8::Function>::try_from(json).unwrap();
 
                             let stringify = v8::String::new(scope, "stringify").unwrap();
                             let stringify = v8::Local::from(stringify);
@@ -194,8 +196,15 @@ impl V8Facade {
                             let string_result =
                                 stringify.call(scope, global.into(), &[result]).unwrap();
                             let string_result = string_result.to_string(scope).unwrap();
+                            let string_result = string_result.to_rust_string_lossy(scope);
 
-                            JavaScriptResult::StringValue(string_result.to_rust_string_lossy(scope))
+                            if result.is_array() {
+                                JavaScriptResult::ArrayValue(string_result)
+                            } else if result.is_object() {
+                                JavaScriptResult::ObjectValue(string_result)
+                            } else {
+                                JavaScriptResult::StringValue(string_result)
+                            }
                         };
 
                         tx_out.send(Output::Result(result)).unwrap();

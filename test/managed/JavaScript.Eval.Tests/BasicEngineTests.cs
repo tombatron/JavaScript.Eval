@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Xunit;
 
 namespace JavaScript.Eval.Tests
@@ -19,11 +20,23 @@ namespace JavaScript.Eval.Tests
         {
             using var engine = new JavaScriptEngine();
 
+            engine.Eval("function helloWorld() { return \"Hello World!\" }");
+
+            var result = engine.Call<string>("helloWorld");
+
+            Assert.Equal("Hello World!", result);
+        }
+
+        [Fact]
+        public void ItCanCallFunctionWithParameters()
+        {
+            using var engine = new JavaScriptEngine();
+
             engine.Eval("function add(x,y) { return x + y; }");
 
-            var result = engine.Call("add", 1, 1);
+            var result = engine.Call<int>("add", 1, 2);
 
-            Assert.Equal("2", result);
+            Assert.Equal(3, result);
         }
 
         [Fact]
@@ -31,11 +44,11 @@ namespace JavaScript.Eval.Tests
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function getArray(foo) { return [1,2,3];}");
+            engine.Eval("function getArray() { return [1,2,3];}");
 
-            var result = engine.Call("getArray", 123);
+            var result = engine.Call<IEnumerable<int>>("getArray");
 
-            Assert.Equal("[1,2,3]", result);
+            Assert.Equal(new[] { 1, 2, 3 }, result);
         }
 
         [Fact]
@@ -43,11 +56,15 @@ namespace JavaScript.Eval.Tests
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function getObject(foo) { return {\"hello\":\"world\"};}");
+            engine.Eval("function getObject() { return {\"Hello\":\"World!\"};}");
 
-            var result = engine.Call("getObject", 123);
+            var result = engine.Call<Message>("getObject");
 
-            Assert.Equal("{}", result);
+            Assert.Equal("World!", result.Hello);
+        }
+
+        public class Message {
+            public string Hello {get;set;}
         }
     }
 }

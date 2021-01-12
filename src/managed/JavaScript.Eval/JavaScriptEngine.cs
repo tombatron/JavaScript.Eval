@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Runtime.InteropServices;
 
 namespace JavaScript.Eval
@@ -40,17 +41,55 @@ namespace JavaScript.Eval
             return CreateManagedString(resultPointer);
         }
 
-        public string Call(string funcName, params Primitive[] funcParams)
+        public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
         {
             var funcNamePointer = Marshal.StringToHGlobalAuto(funcName);
 
-            var resultPointer = Native.call(_handle, funcNamePointer, funcParams, funcParams.Length);
+            var primitiveResultPointer = Native.call(_handle, funcNamePointer, funcParams, funcParams.Length);
+            var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
+
+            TResult result;
+
+            if (primitiveResult.number_value_set > 0)
+            {
+                result = (TResult)Convert.ChangeType(primitiveResult.number_value, typeof(TResult));
+            }
+            else if (primitiveResult.bigint_value_set > 0)
+            {
+                result = (TResult)Convert.ChangeType(primitiveResult.bigint_value, typeof(TResult));
+            }
+            else if (primitiveResult.bool_value_set > 0)
+            {
+                result = (TResult)Convert.ChangeType(primitiveResult.bool_value, typeof(TResult));
+            }
+            else if (primitiveResult.string_value != IntPtr.Zero)
+            {
+                var stringValue = Marshal.PtrToStringAuto(primitiveResult.string_value);
+
+                result = (TResult)Convert.ChangeType(stringValue, typeof(TResult));
+            }
+            else if (primitiveResult.array_value != IntPtr.Zero)
+            {
+                var arrayStringValue = Marshal.PtrToStringAuto(primitiveResult.array_value);
+
+                result = JsonSerializer.Deserialize<TResult>(arrayStringValue);
+            }
+            else if (primitiveResult.object_value != IntPtr.Zero)
+            {
+                var objectStringValue = Marshal.PtrToStringAuto(primitiveResult.object_value);
+
+                result = JsonSerializer.Deserialize<TResult>(objectStringValue);
+            }
+            else
+            {
+                result = default(TResult);
+            }
 
             Marshal.FreeHGlobal(funcNamePointer);
-
             Free(funcParams);
+            Native.free_primitive_result(primitiveResultPointer);
 
-            return CreateManagedString(resultPointer);
+            return result;
         }
 
         public void Dispose()
@@ -104,5 +143,8 @@ namespace JavaScript.Eval
 
         [DllImport(LIB_NAME)]
         internal static extern void free_string(IntPtr stringPointer);
+
+        [DllImport(LIB_NAME)]
+        internal static extern void free_primitive_result(IntPtr handle);
     }
 }

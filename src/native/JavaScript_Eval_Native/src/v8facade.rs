@@ -25,7 +25,7 @@ enum Input {
 
 pub enum Output {
     Result(JavaScriptResult),
-    Error(String),
+    Error(JavaScriptError),
 }
 
 pub struct FunctionCall {
@@ -53,9 +53,13 @@ pub enum JavaScriptResult {
     ObjectValue(String),
 }
 
+pub struct JavaScriptError {
+    pub exception: String,
+    pub stack_trace: String,
+}
+
 impl FunctionParameter {
     pub fn from(p: &Primitive) -> FunctionParameter {
-        println!("from call: {:?}", p);
         if !p.string_value.is_null() {
             unsafe {
                 return FunctionParameter::StringValue(
@@ -99,6 +103,59 @@ pub struct V8Facade {
 }
 
 impl V8Facade {
+    // https://github.com/denoland/rusty_v8/blob/584a0378002d2f952c55dd5f3d34ea2017ed0c7b/tests/test_api.rs#L565
+    fn eval<'s>(scope: &mut v8::HandleScope<'s>, code: &str) -> Option<v8::Local<'s, v8::Value>> {
+        let scope = &mut v8::EscapableHandleScope::new(scope);
+        let source = v8::String::new(scope, &code).unwrap();
+        let script = v8::Script::compile(scope, source, None).unwrap();
+
+        let r = script.run(scope);
+        r.map(|v| scope.escape(v))
+    }
+
+    fn call_func<'s>(
+        scope: &mut v8::HandleScope<'s>,
+        global: v8::Local<v8::Object>,
+        func_args: &FunctionCall,
+    ) -> Option<v8::Local<'s, v8::Value>> {
+        let scope = &mut v8::EscapableHandleScope::new(scope);
+
+        let func_name = v8::String::new(scope, &func_args.name).unwrap();
+        let func_name = v8::Local::from(func_name);
+
+        let func = global.get(scope, func_name).unwrap();
+        let func = v8::Local::<v8::Function>::try_from(func).unwrap();
+
+        let args: Vec<v8::Local<v8::Value>> = func_args
+            .arguments
+            .iter()
+            .map(|p| -> v8::Local<v8::Value> {
+                match p {
+                    FunctionParameter::StringValue(v) => {
+                        v8::String::new(scope, v.as_str()).unwrap().into()
+                    }
+
+                    FunctionParameter::NumberValue(v) => v8::Number::new(scope, *v).into(),
+
+                    FunctionParameter::BigIntValue(v) => v8::BigInt::new_from_i64(scope, *v).into(),
+
+                    FunctionParameter::BoolValue(v) => v8::Boolean::new(scope, *v).into(),
+
+                    FunctionParameter::SymbolValue(v) => {
+                        let desc = v8::String::new(scope, v.as_str());
+
+                        v8::Symbol::new(scope, desc).into()
+                    }
+                }
+            })
+            .collect();
+
+        let args = args.as_slice();
+
+        let result = func.call(scope, global.into(), args);
+        result.map(|v| scope.escape(v))
+    }
+
     #[allow(unreachable_code)]
     pub fn new() -> Self {
         INIT_PLATFORM.call_once(init_platform);
@@ -119,95 +176,134 @@ impl V8Facade {
 
                 match input {
                     Input::Source(code) => {
-                        let script_source = v8::String::new(scope, &code).unwrap();
-                        let script = v8::Script::compile(scope, script_source, None).unwrap();
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::eval(tc, code.as_str());
 
-                        let result = script.run(scope).unwrap();
-                        let result = result.to_string(scope).unwrap();
+                        match result {
+                            Some(v) => {
+                                let result = if v.is_string() {
+                                    let string_result = v.to_string(tc).unwrap();
+                                    JavaScriptResult::StringValue(
+                                        string_result.to_rust_string_lossy(tc),
+                                    )
+                                } else if v.is_number() {
+                                    let number_result = v.to_number(tc).unwrap();
+                                    JavaScriptResult::NumberValue(number_result.value())
+                                } else if v.is_big_int() {
+                                    let bigint_result = v.to_big_int(tc).unwrap();
+                                    JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
+                                } else if v.is_boolean() {
+                                    let bool_result = v.to_boolean(tc);
+                                    JavaScriptResult::BoolValue(bool_result.boolean_value(tc))
+                                } else {
+                                    let json = v8::String::new(tc, "JSON").unwrap();
+                                    let json = v8::Local::from(json);
+                                    let json = global.get(tc, json).unwrap();
+                                    let json = v8::Local::<v8::Object>::try_from(json).unwrap();
 
-                        let output = result.to_rust_string_lossy(scope);
-                        let output = JavaScriptResult::StringValue(output);
+                                    let stringify = v8::String::new(tc, "stringify").unwrap();
+                                    let stringify = v8::Local::from(stringify);
+                                    let stringify = json.get(tc, stringify).unwrap();
+                                    let stringify =
+                                        v8::Local::<v8::Function>::try_from(stringify).unwrap();
 
-                        tx_out.send(Output::Result(output)).unwrap();
+                                    let string_result =
+                                        stringify.call(tc, global.into(), &[v]).unwrap();
+                                    let string_result = string_result.to_string(tc).unwrap();
+                                    let string_result = string_result.to_rust_string_lossy(tc);
+
+                                    if v.is_array() {
+                                        JavaScriptResult::ArrayValue(string_result)
+                                    } else if v.is_object() {
+                                        JavaScriptResult::ObjectValue(string_result)
+                                    } else {
+                                        JavaScriptResult::StringValue(string_result)
+                                    }
+                                };
+
+                                tx_out.send(Output::Result(result)).unwrap();
+                            }
+                            None => {
+                                let exception = tc.exception().unwrap();
+                                let exception = exception.to_rust_string_lossy(tc);
+
+                                let stack_trace = tc.stack_trace().unwrap();
+                                let stack_trace = stack_trace.to_rust_string_lossy(tc);
+
+                                tx_out
+                                    .send(Output::Error(JavaScriptError {
+                                        exception,
+                                        stack_trace,
+                                    }))
+                                    .unwrap();
+                            }
+                        }
                     }
 
                     Input::Function(func_args) => {
-                        let func_name = v8::String::new(scope, &func_args.name).unwrap();
-                        let func_name = v8::Local::from(func_name);
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::call_func(tc, global, &func_args);
 
-                        let func = global.get(scope, func_name).unwrap();
-                        let func = v8::Local::<v8::Function>::try_from(func).unwrap();
+                        match result {
+                            Some(v) => {
+                                let result = if v.is_string() {
+                                    let string_result = v.to_string(tc).unwrap();
+                                    JavaScriptResult::StringValue(
+                                        string_result.to_rust_string_lossy(tc),
+                                    )
+                                } else if v.is_number() {
+                                    let number_result = v.to_number(tc).unwrap();
+                                    JavaScriptResult::NumberValue(number_result.value())
+                                } else if v.is_big_int() {
+                                    let bigint_result = v.to_big_int(tc).unwrap();
+                                    JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
+                                } else if v.is_boolean() {
+                                    let bool_result = v.to_boolean(tc);
+                                    JavaScriptResult::BoolValue(bool_result.boolean_value(tc))
+                                } else {
+                                    let json = v8::String::new(tc, "JSON").unwrap();
+                                    let json = v8::Local::from(json);
+                                    let json = global.get(tc, json).unwrap();
+                                    let json = v8::Local::<v8::Object>::try_from(json).unwrap();
 
-                        let args: Vec<v8::Local<v8::Value>> = func_args
-                            .arguments
-                            .iter()
-                            .map(|p| -> v8::Local<v8::Value> {
-                                match p {
-                                    FunctionParameter::StringValue(v) => {
-                                        v8::String::new(scope, v.as_str()).unwrap().into()
+                                    let stringify = v8::String::new(tc, "stringify").unwrap();
+                                    let stringify = v8::Local::from(stringify);
+                                    let stringify = json.get(tc, stringify).unwrap();
+                                    let stringify =
+                                        v8::Local::<v8::Function>::try_from(stringify).unwrap();
+
+                                    let string_result =
+                                        stringify.call(tc, global.into(), &[v]).unwrap();
+                                    let string_result = string_result.to_string(tc).unwrap();
+                                    let string_result = string_result.to_rust_string_lossy(tc);
+
+                                    if v.is_array() {
+                                        JavaScriptResult::ArrayValue(string_result)
+                                    } else if v.is_object() {
+                                        JavaScriptResult::ObjectValue(string_result)
+                                    } else {
+                                        JavaScriptResult::StringValue(string_result)
                                     }
+                                };
 
-                                    FunctionParameter::NumberValue(v) => {
-                                        v8::Number::new(scope, *v).into()
-                                    }
-                                    FunctionParameter::BigIntValue(v) => {
-                                        v8::BigInt::new_from_i64(scope, *v).into()
-                                    }
-                                    FunctionParameter::BoolValue(v) => {
-                                        v8::Boolean::new(scope, *v).into()
-                                    }
-
-                                    FunctionParameter::SymbolValue(v) => {
-                                        let desc = v8::String::new(scope, v.as_str());
-
-                                        v8::Symbol::new(scope, desc).into()
-                                    }
-                                }
-                            })
-                            .collect();
-
-                        let args = args.as_slice();
-
-                        let result = func.call(scope, global.into(), args).unwrap();
-
-                        let result = if result.is_string() {
-                            let string_result = result.to_string(scope).unwrap();
-                            JavaScriptResult::StringValue(string_result.to_rust_string_lossy(scope))
-                        } else if result.is_number() {
-                            let number_result = result.to_number(scope).unwrap();
-                            JavaScriptResult::NumberValue(number_result.value())
-                        } else if result.is_big_int() {
-                            let bigint_result = result.to_big_int(scope).unwrap();
-                            JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
-                        } else if result.is_boolean() {
-                            let bool_result = result.to_boolean(scope);
-                            JavaScriptResult::BoolValue(bool_result.boolean_value(scope))
-                        } else {
-                            let json = v8::String::new(scope, "JSON").unwrap();
-                            let json = v8::Local::from(json);
-                            let json = global.get(scope, json).unwrap();
-                            let json = v8::Local::<v8::Object>::try_from(json).unwrap();
-
-                            let stringify = v8::String::new(scope, "stringify").unwrap();
-                            let stringify = v8::Local::from(stringify);
-                            let stringify = json.get(scope, stringify).unwrap();
-                            let stringify = v8::Local::<v8::Function>::try_from(stringify).unwrap();
-
-                            let string_result =
-                                stringify.call(scope, global.into(), &[result]).unwrap();
-                            let string_result = string_result.to_string(scope).unwrap();
-                            let string_result = string_result.to_rust_string_lossy(scope);
-
-                            if result.is_array() {
-                                JavaScriptResult::ArrayValue(string_result)
-                            } else if result.is_object() {
-                                JavaScriptResult::ObjectValue(string_result)
-                            } else {
-                                JavaScriptResult::StringValue(string_result)
+                                tx_out.send(Output::Result(result)).unwrap();
                             }
-                        };
 
-                        tx_out.send(Output::Result(result)).unwrap();
+                            None => {
+                                let exception = tc.exception().unwrap();
+                                let exception = exception.to_rust_string_lossy(tc);
+
+                                let stack_trace = tc.stack_trace().unwrap();
+                                let stack_trace = stack_trace.to_rust_string_lossy(tc);
+
+                                tx_out
+                                    .send(Output::Error(JavaScriptError {
+                                        exception,
+                                        stack_trace,
+                                    }))
+                                    .unwrap();
+                            }
+                        }
                     }
                 };
             }

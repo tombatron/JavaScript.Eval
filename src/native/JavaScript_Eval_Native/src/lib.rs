@@ -4,7 +4,7 @@ use std::{
     ptr,
 };
 
-use v8facade::{FunctionParameter, JavaScriptResult, Output, V8Facade};
+use v8facade::{FunctionParameter, JavaScriptError, JavaScriptResult, Output, V8Facade};
 
 mod v8facade;
 
@@ -26,6 +26,13 @@ pub struct Primitive {
 
 #[repr(C)]
 #[derive(Debug)]
+pub struct UnsafeJavaScriptError {
+    pub exception: *mut c_char,
+    pub stack_trace: *mut c_char,
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct PrimitiveResult {
     pub number_value: f64,
     pub number_value_set: bool,
@@ -39,6 +46,8 @@ pub struct PrimitiveResult {
     pub string_value: *mut c_char,
     pub array_value: *mut c_char,
     pub object_value: *mut c_char,
+
+    pub error: *mut UnsafeJavaScriptError,
 }
 
 impl PrimitiveResult {
@@ -56,6 +65,8 @@ impl PrimitiveResult {
             string_value: ptr::null_mut(),
             array_value: ptr::null_mut(),
             object_value: ptr::null_mut(),
+
+            error: ptr::null_mut(),
         }
     }
 
@@ -73,6 +84,8 @@ impl PrimitiveResult {
             string_value: ptr::null_mut(),
             array_value: ptr::null_mut(),
             object_value: ptr::null_mut(),
+
+            error: ptr::null_mut(),
         }
     }
 
@@ -90,6 +103,8 @@ impl PrimitiveResult {
             string_value: ptr::null_mut(),
             array_value: ptr::null_mut(),
             object_value: ptr::null_mut(),
+
+            error: ptr::null_mut(),
         }
     }
 
@@ -107,6 +122,8 @@ impl PrimitiveResult {
             string_value: CString::new(string).unwrap().into_raw(),
             array_value: ptr::null_mut(),
             object_value: ptr::null_mut(),
+
+            error: ptr::null_mut(),
         }
     }
 
@@ -124,6 +141,8 @@ impl PrimitiveResult {
             string_value: ptr::null_mut(),
             array_value: CString::new(array).unwrap().into_raw(),
             object_value: ptr::null_mut(),
+
+            error: ptr::null_mut(),
         }
     }
 
@@ -141,11 +160,23 @@ impl PrimitiveResult {
             string_value: ptr::null_mut(),
             array_value: ptr::null_mut(),
             object_value: CString::new(object).unwrap().into_raw(),
+
+            error: ptr::null_mut(),
         }
     }
 
-    pub fn create_for_error(string: String) -> PrimitiveResult {
-        // TODO: Need some first class error stuff here.
+    pub fn create_for_error(javascript_error: JavaScriptError) -> PrimitiveResult {
+        let exception = CString::new(javascript_error.exception).unwrap().into_raw();
+        let stack_trace = CString::new(javascript_error.stack_trace)
+            .unwrap()
+            .into_raw();
+
+        let unsafe_error = UnsafeJavaScriptError {
+            exception,
+            stack_trace,
+        };
+
+        let unsafe_error = Box::into_raw(Box::new(unsafe_error));
 
         PrimitiveResult {
             number_value: 0.0,
@@ -157,9 +188,11 @@ impl PrimitiveResult {
             bool_value: false,
             bool_value_set: false,
 
-            string_value: CString::new(string).unwrap().into_raw(),
+            string_value: ptr::null_mut(),
             array_value: ptr::null_mut(),
             object_value: ptr::null_mut(),
+
+            error: unsafe_error,
         }
     }
 }
@@ -186,7 +219,7 @@ pub extern "C" fn free_v8(v8_facade_ptr: *mut V8Facade) {
 pub unsafe extern "C" fn exec(
     v8_facade_ptr: *mut V8Facade,
     script: *const c_char,
-) -> *const c_char {
+) -> *mut PrimitiveResult {
     let script = CStr::from_ptr(script).to_string_lossy().into_owned();
 
     let instance = {
@@ -198,10 +231,26 @@ pub unsafe extern "C" fn exec(
 
     match result {
         Output::Result(r) => match r {
-            JavaScriptResult::StringValue(s) => CString::new(s).unwrap().into_raw(),
-            _ => CString::new("complete this").unwrap().into_raw(),
+            JavaScriptResult::StringValue(s) => {
+                Box::into_raw(Box::new(PrimitiveResult::create_for_string(s)))
+            }
+            JavaScriptResult::NumberValue(n) => {
+                Box::into_raw(Box::new(PrimitiveResult::create_for_number(n)))
+            }
+            JavaScriptResult::BigIntValue(i) => {
+                Box::into_raw(Box::new(PrimitiveResult::create_for_bigint(i)))
+            }
+            JavaScriptResult::BoolValue(b) => {
+                Box::into_raw(Box::new(PrimitiveResult::create_for_bool(b)))
+            }
+            JavaScriptResult::ArrayValue(av) => {
+                Box::into_raw(Box::new(PrimitiveResult::create_for_array(av)))
+            }
+            JavaScriptResult::ObjectValue(ov) => {
+                Box::into_raw(Box::new(PrimitiveResult::create_for_object(ov)))
+            }
         },
-        Output::Error(e) => CString::new(e).unwrap().into_raw(),
+        Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
     }
 }
 
@@ -225,7 +274,10 @@ pub unsafe extern "C" fn call(
         &mut *v8_facade_ptr
     };
 
-    let result = instance.call(func_name, parameters).unwrap();
+    let result = match instance.call(func_name, parameters) {
+        Ok(o) => o,
+        Err(e) => Output::Error(JavaScriptError{exception : e, stack_trace:String::from("")}),
+    };
 
     match result {
         Output::Result(r) => match r {
@@ -275,5 +327,14 @@ pub unsafe extern "C" fn free_primitive_result(primitive_result_ptr: *mut Primit
 
     if !primitive_result.object_value.is_null() {
         CString::from_raw(primitive_result.object_value);
+    }
+
+    if !primitive_result.error.is_null() {
+        let error = primitive_result.error;
+
+        CString::from_raw((*error).exception);
+        CString::from_raw((*error).stack_trace);
+
+        Box::from_raw(primitive_result.error);
     }
 }

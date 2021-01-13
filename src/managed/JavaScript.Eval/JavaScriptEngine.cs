@@ -1,6 +1,7 @@
+using JavaScript.Eval.Exceptions;
 using System;
-using System.Text.Json;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace JavaScript.Eval
 {
@@ -30,15 +31,35 @@ namespace JavaScript.Eval
             _handle = Native.get_v8();
         }
 
-        public string Eval(string script)
+        public TResult Eval<TResult>(string script)
         {
             var scriptPointer = Marshal.StringToHGlobalAuto(script);
 
-            var resultPointer = Native.exec(_handle, scriptPointer);
+            var primitiveResultPointer = Native.exec(_handle, scriptPointer);
+            var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
+
+            var result = MapPrimitiveResult<TResult>(primitiveResult);
 
             Marshal.FreeHGlobal(scriptPointer);
+            Native.free_primitive_result(primitiveResultPointer);
 
-            return CreateManagedString(resultPointer);
+            return result;
+        }
+
+        public void Eval(string script)
+        {
+            var scriptPointer = Marshal.StringToHGlobalAuto(script);
+
+            var primitiveResultPointer = Native.exec(_handle, scriptPointer);
+            var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
+
+            if (TryCheckForException(primitiveResult, out var exception))
+            {
+                throw exception;
+            }
+
+            Marshal.FreeHGlobal(scriptPointer);
+            Native.free_primitive_result(primitiveResultPointer);
         }
 
         public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
@@ -48,48 +69,73 @@ namespace JavaScript.Eval
             var primitiveResultPointer = Native.call(_handle, funcNamePointer, funcParams, funcParams.Length);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
 
-            TResult result;
-
-            if (primitiveResult.number_value_set > 0)
-            {
-                result = (TResult)Convert.ChangeType(primitiveResult.number_value, typeof(TResult));
-            }
-            else if (primitiveResult.bigint_value_set > 0)
-            {
-                result = (TResult)Convert.ChangeType(primitiveResult.bigint_value, typeof(TResult));
-            }
-            else if (primitiveResult.bool_value_set > 0)
-            {
-                result = (TResult)Convert.ChangeType(primitiveResult.bool_value, typeof(TResult));
-            }
-            else if (primitiveResult.string_value != IntPtr.Zero)
-            {
-                var stringValue = Marshal.PtrToStringAuto(primitiveResult.string_value);
-
-                result = (TResult)Convert.ChangeType(stringValue, typeof(TResult));
-            }
-            else if (primitiveResult.array_value != IntPtr.Zero)
-            {
-                var arrayStringValue = Marshal.PtrToStringAuto(primitiveResult.array_value);
-
-                result = JsonSerializer.Deserialize<TResult>(arrayStringValue);
-            }
-            else if (primitiveResult.object_value != IntPtr.Zero)
-            {
-                var objectStringValue = Marshal.PtrToStringAuto(primitiveResult.object_value);
-
-                result = JsonSerializer.Deserialize<TResult>(objectStringValue);
-            }
-            else
-            {
-                result = default(TResult);
-            }
+            var result = MapPrimitiveResult<TResult>(primitiveResult);
 
             Marshal.FreeHGlobal(funcNamePointer);
             Free(funcParams);
             Native.free_primitive_result(primitiveResultPointer);
 
             return result;
+        }
+
+        private TResult MapPrimitiveResult<TResult>(PrimitiveResult primitiveResult)
+        {
+            if (primitiveResult.number_value_set > 0)
+            {
+                return (TResult)Convert.ChangeType(primitiveResult.number_value, typeof(TResult));
+            }
+            else if (primitiveResult.bigint_value_set > 0)
+            {
+                return (TResult)Convert.ChangeType(primitiveResult.bigint_value, typeof(TResult));
+            }
+            else if (primitiveResult.bool_value_set > 0)
+            {
+                return (TResult)Convert.ChangeType(primitiveResult.bool_value, typeof(TResult));
+            }
+            else if (primitiveResult.string_value != IntPtr.Zero)
+            {
+                var stringValue = Marshal.PtrToStringAuto(primitiveResult.string_value);
+
+                return (TResult)Convert.ChangeType(stringValue, typeof(TResult));
+            }
+            else if (primitiveResult.array_value != IntPtr.Zero)
+            {
+                var arrayStringValue = Marshal.PtrToStringAuto(primitiveResult.array_value);
+
+                return JsonSerializer.Deserialize<TResult>(arrayStringValue);
+            }
+            else if (primitiveResult.object_value != IntPtr.Zero)
+            {
+                var objectStringValue = Marshal.PtrToStringAuto(primitiveResult.object_value);
+
+                return JsonSerializer.Deserialize<TResult>(objectStringValue);
+            }
+            else if (TryCheckForException(primitiveResult, out var exception))
+            {
+                throw exception;
+            }
+            else
+            {
+                return default(TResult);
+            }
+        }
+
+        private bool TryCheckForException(PrimitiveResult primitiveResult, out JavaScriptException exception)
+        {
+            if (primitiveResult.error != IntPtr.Zero)
+            {
+                var error = Marshal.PtrToStructure<UnsafeJavaScriptError>(primitiveResult.error);
+                
+                exception = new JavaScriptException(error);
+
+                return true;
+            }
+            else
+            {
+                exception = default;
+
+                return false;
+            }
         }
 
         public void Dispose()
@@ -99,14 +145,14 @@ namespace JavaScript.Eval
             _isDisposed = true;
         }
 
-        private static string CreateManagedString(IntPtr stringPointer)
-        {
-            var result = Marshal.PtrToStringAuto(stringPointer);
+        // private static string CreateManagedString(IntPtr stringPointer)
+        // {
+        //     var result = Marshal.PtrToStringAuto(stringPointer);
 
-            Native.free_string(stringPointer);
+        //     Native.free_string(stringPointer);
 
-            return result;
-        }
+        //     return result;
+        // }
 
         private static void Free(Primitive[] primitives)
         {
@@ -118,10 +164,8 @@ namespace JavaScript.Eval
 
         private static void Free(Primitive primitive)
         {
-            // Marshal.FreeHGlobal(primitive.string_value);
-            // Marshal.FreeHGlobal(primitive.symbol_value);
-
-            Console.WriteLine("Free!");
+            Marshal.FreeHGlobal(primitive.string_value);
+            Marshal.FreeHGlobal(primitive.symbol_value);
         }
     }
 

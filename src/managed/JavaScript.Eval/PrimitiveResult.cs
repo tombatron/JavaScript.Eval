@@ -18,5 +18,6 @@ namespace JavaScript.Eval
         public IntPtr string_value { get; set; }
         public IntPtr array_value { get; set; }
         public IntPtr object_value { get; set; }
+        public IntPtr error { get; set; }
     }
 }

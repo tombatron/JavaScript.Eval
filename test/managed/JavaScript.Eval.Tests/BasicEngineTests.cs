@@ -1,3 +1,4 @@
+using JavaScript.Eval.Exceptions;
 using System.Collections.Generic;
 using Xunit;
 
@@ -10,9 +11,9 @@ namespace JavaScript.Eval.Tests
         {
             using var engine = new JavaScriptEngine();
 
-            var result = engine.Eval("1+1;");
+            var result = engine.Eval<int>("1+1;");
 
-            Assert.Equal("2", result);
+            Assert.Equal(2, result);
         }
 
         [Fact]
@@ -28,6 +29,38 @@ namespace JavaScript.Eval.Tests
         }
 
         [Fact]
+        public void ItWillThrowJavaScriptException()
+        {
+            using var engine = new JavaScriptEngine();
+
+            engine.Eval("function thisShouldBreak() { return foo.bar.baz; }");
+
+            var exception = Assert.Throws<JavaScriptException>(() =>
+            {
+                engine.Eval<string>("thisShouldBreak();");
+            });
+
+            Assert.Equal("ReferenceError: foo is not defined", exception.Message);
+            Assert.Equal("ReferenceError: foo is not defined\n    at thisShouldBreak (<anonymous>:1:30)\n    at <anonymous>:1:1", exception.StackTrace);
+        }
+
+        [Fact]
+        public void ItWillThrowJavaScriptExceptionOnBadFunctionCall()
+        {
+            using var engine = new JavaScriptEngine();
+
+            engine.Eval("function thisShouldBreak() { return foo.bar.baz; }");
+
+            var exception = Assert.Throws<JavaScriptException>(() =>
+            {
+                engine.Call<string>("thisShouldBreak");
+            });
+
+            Assert.Equal("ReferenceError: foo is not defined", exception.Message);
+            Assert.Equal("ReferenceError: foo is not defined\n    at thisShouldBreak (<anonymous>:1:30)", exception.StackTrace);
+        }
+
+        [Fact]
         public void ItCanCallFunctionWithParameters()
         {
             using var engine = new JavaScriptEngine();
@@ -37,6 +70,20 @@ namespace JavaScript.Eval.Tests
             var result = engine.Call<int>("add", 1, 2);
 
             Assert.Equal(3, result);
+        }
+
+        [Fact]
+        public void ItWillThrowExceptionIfYouCallNonExistentFunction()
+        {
+            using var engine = new JavaScriptEngine();
+
+            var exception = Assert.Throws<JavaScriptException>(() => 
+            {
+                engine.Call<string>("thisDoesntEvenExist");
+            });
+
+            Assert.Equal("whoa", exception.Message);
+            Assert.Null(exception.StackTrace);
         }
 
         [Fact]
@@ -63,8 +110,9 @@ namespace JavaScript.Eval.Tests
             Assert.Equal("World!", result.Hello);
         }
 
-        public class Message {
-            public string Hello {get;set;}
+        public class Message
+        {
+            public string Hello { get; set; }
         }
     }
 }

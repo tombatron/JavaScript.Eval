@@ -82,7 +82,7 @@ namespace JavaScript.Eval.Tests
                 engine.Call<string>("thisDoesntEvenExist");
             });
 
-            Assert.Equal("whoa", exception.Message);
+            Assert.Equal("Couldn't resolve function `thisDoesntEvenExist`, V8 returned: 'undefined'", exception.Message);
             Assert.Null(exception.StackTrace);
         }
 

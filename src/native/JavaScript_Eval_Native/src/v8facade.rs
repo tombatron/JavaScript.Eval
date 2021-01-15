@@ -7,7 +7,7 @@ use std::{
 
 use rusty_v8 as v8;
 
-use crate::Primitive;
+use crate::{Primitive, V8HeapStatistics};
 
 static INIT_PLATFORM: Once = Once::new();
 
@@ -21,11 +21,13 @@ fn init_platform() {
 enum Input {
     Source(String),
     Function(FunctionCall),
+    HeapReport,
 }
 
 pub enum Output {
     Result(JavaScriptResult),
     Error(JavaScriptError),
+    HeapStatistics(V8HeapStatistics),
 }
 
 pub struct FunctionCall {
@@ -51,6 +53,50 @@ pub enum JavaScriptResult {
     // These will be tossed back as JSON strings.
     ArrayValue(String),
     ObjectValue(String),
+}
+
+impl JavaScriptResult {
+    pub fn from<'s>(
+        value: v8::Local<v8::Value>,
+        scope: &mut v8::HandleScope<'s>,
+        global: v8::Local<v8::Object>,
+    ) -> JavaScriptResult {
+        if value.is_string() {
+            let string_result = value.to_string(scope).unwrap();
+            JavaScriptResult::StringValue(string_result.to_rust_string_lossy(scope))
+        } else if value.is_number() {
+            let number_result = value.to_number(scope).unwrap();
+            JavaScriptResult::NumberValue(number_result.value())
+        } else if value.is_big_int() {
+            let bigint_result = value.to_big_int(scope).unwrap();
+            JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
+        } else if value.is_boolean() {
+            let bool_result = value.to_boolean(scope);
+            JavaScriptResult::BoolValue(bool_result.boolean_value(scope))
+        } else {
+            let json = v8::String::new(scope, "JSON").unwrap();
+            let json = v8::Local::from(json);
+            let json = global.get(scope, json).unwrap();
+            let json = v8::Local::<v8::Object>::try_from(json).unwrap();
+
+            let stringify = v8::String::new(scope, "stringify").unwrap();
+            let stringify = v8::Local::from(stringify);
+            let stringify = json.get(scope, stringify).unwrap();
+            let stringify = v8::Local::<v8::Function>::try_from(stringify).unwrap();
+
+            let string_result = stringify.call(scope, global.into(), &[value]).unwrap();
+            let string_result = string_result.to_string(scope).unwrap();
+            let string_result = string_result.to_rust_string_lossy(scope);
+
+            if value.is_array() {
+                JavaScriptResult::ArrayValue(string_result)
+            } else if value.is_object() {
+                JavaScriptResult::ObjectValue(string_result)
+            } else {
+                JavaScriptResult::StringValue(string_result)
+            }
+        }
+    }
 }
 
 pub struct JavaScriptError {
@@ -162,6 +208,36 @@ impl V8Facade {
         Result::Ok(result.map(|v| scope.escape(v)))
     }
 
+    fn send_result_to_output(
+        result: Option<v8::Local<v8::Value>>,
+        scope: &mut v8::TryCatch<v8::HandleScope>,
+        global: v8::Local<v8::Object>,
+        tx_out: &mpsc::Sender<Output>,
+    ) {
+        match result {
+            Some(v) => {
+                let result = JavaScriptResult::from(v, scope, global);
+
+                tx_out.send(Output::Result(result)).unwrap();
+            }
+
+            None => {
+                let exception = scope.exception().unwrap();
+                let exception = exception.to_rust_string_lossy(scope);
+
+                let stack_trace = scope.stack_trace().unwrap();
+                let stack_trace = stack_trace.to_rust_string_lossy(scope);
+
+                tx_out
+                    .send(Output::Error(JavaScriptError {
+                        exception,
+                        stack_trace,
+                    }))
+                    .unwrap();
+            }
+        }
+    }
+
     #[allow(unreachable_code)]
     pub fn new() -> Self {
         INIT_PLATFORM.call_once(init_platform);
@@ -185,65 +261,7 @@ impl V8Facade {
                         let tc = &mut v8::TryCatch::new(scope);
                         let result = V8Facade::eval(tc, code.as_str());
 
-                        match result {
-                            Some(v) => {
-                                let result = if v.is_string() {
-                                    let string_result = v.to_string(tc).unwrap();
-                                    JavaScriptResult::StringValue(
-                                        string_result.to_rust_string_lossy(tc),
-                                    )
-                                } else if v.is_number() {
-                                    let number_result = v.to_number(tc).unwrap();
-                                    JavaScriptResult::NumberValue(number_result.value())
-                                } else if v.is_big_int() {
-                                    let bigint_result = v.to_big_int(tc).unwrap();
-                                    JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
-                                } else if v.is_boolean() {
-                                    let bool_result = v.to_boolean(tc);
-                                    JavaScriptResult::BoolValue(bool_result.boolean_value(tc))
-                                } else {
-                                    let json = v8::String::new(tc, "JSON").unwrap();
-                                    let json = v8::Local::from(json);
-                                    let json = global.get(tc, json).unwrap();
-                                    let json = v8::Local::<v8::Object>::try_from(json).unwrap();
-
-                                    let stringify = v8::String::new(tc, "stringify").unwrap();
-                                    let stringify = v8::Local::from(stringify);
-                                    let stringify = json.get(tc, stringify).unwrap();
-                                    let stringify =
-                                        v8::Local::<v8::Function>::try_from(stringify).unwrap();
-
-                                    let string_result =
-                                        stringify.call(tc, global.into(), &[v]).unwrap();
-                                    let string_result = string_result.to_string(tc).unwrap();
-                                    let string_result = string_result.to_rust_string_lossy(tc);
-
-                                    if v.is_array() {
-                                        JavaScriptResult::ArrayValue(string_result)
-                                    } else if v.is_object() {
-                                        JavaScriptResult::ObjectValue(string_result)
-                                    } else {
-                                        JavaScriptResult::StringValue(string_result)
-                                    }
-                                };
-
-                                tx_out.send(Output::Result(result)).unwrap();
-                            }
-                            None => {
-                                let exception = tc.exception().unwrap();
-                                let exception = exception.to_rust_string_lossy(tc);
-
-                                let stack_trace = tc.stack_trace().unwrap();
-                                let stack_trace = stack_trace.to_rust_string_lossy(tc);
-
-                                tx_out
-                                    .send(Output::Error(JavaScriptError {
-                                        exception,
-                                        stack_trace,
-                                    }))
-                                    .unwrap();
-                            }
-                        }
+                        V8Facade::send_result_to_output(result, tc, global, &tx_out);
                     }
 
                     Input::Function(func_args) => {
@@ -251,66 +269,9 @@ impl V8Facade {
                         let result = V8Facade::call_func(tc, global, &func_args);
 
                         match result {
-                            Ok(result) => match result {
-                                Some(v) => {
-                                    let result = if v.is_string() {
-                                        let string_result = v.to_string(tc).unwrap();
-                                        JavaScriptResult::StringValue(
-                                            string_result.to_rust_string_lossy(tc),
-                                        )
-                                    } else if v.is_number() {
-                                        let number_result = v.to_number(tc).unwrap();
-                                        JavaScriptResult::NumberValue(number_result.value())
-                                    } else if v.is_big_int() {
-                                        let bigint_result = v.to_big_int(tc).unwrap();
-                                        JavaScriptResult::BigIntValue(bigint_result.i64_value().0)
-                                    } else if v.is_boolean() {
-                                        let bool_result = v.to_boolean(tc);
-                                        JavaScriptResult::BoolValue(bool_result.boolean_value(tc))
-                                    } else {
-                                        let json = v8::String::new(tc, "JSON").unwrap();
-                                        let json = v8::Local::from(json);
-                                        let json = global.get(tc, json).unwrap();
-                                        let json = v8::Local::<v8::Object>::try_from(json).unwrap();
-
-                                        let stringify = v8::String::new(tc, "stringify").unwrap();
-                                        let stringify = v8::Local::from(stringify);
-                                        let stringify = json.get(tc, stringify).unwrap();
-                                        let stringify =
-                                            v8::Local::<v8::Function>::try_from(stringify).unwrap();
-
-                                        let string_result =
-                                            stringify.call(tc, global.into(), &[v]).unwrap();
-                                        let string_result = string_result.to_string(tc).unwrap();
-                                        let string_result = string_result.to_rust_string_lossy(tc);
-
-                                        if v.is_array() {
-                                            JavaScriptResult::ArrayValue(string_result)
-                                        } else if v.is_object() {
-                                            JavaScriptResult::ObjectValue(string_result)
-                                        } else {
-                                            JavaScriptResult::StringValue(string_result)
-                                        }
-                                    };
-
-                                    tx_out.send(Output::Result(result)).unwrap();
-                                }
-
-                                None => {
-                                    let exception = tc.exception().unwrap();
-                                    let exception = exception.to_rust_string_lossy(tc);
-
-                                    let stack_trace = tc.stack_trace().unwrap();
-                                    let stack_trace = stack_trace.to_rust_string_lossy(tc);
-
-                                    tx_out
-                                        .send(Output::Error(JavaScriptError {
-                                            exception,
-                                            stack_trace,
-                                        }))
-                                        .unwrap();
-                                }
-                            },
+                            Ok(result) => {
+                                V8Facade::send_result_to_output(result, tc, global, &tx_out)
+                            }
 
                             Err(error) => {
                                 let error = JavaScriptError {
@@ -321,6 +282,27 @@ impl V8Facade {
                                 tx_out.send(Output::Error(error)).unwrap();
                             }
                         };
+                    }
+
+                    Input::HeapReport => {
+                        let heap_stats = &mut v8::HeapStatistics::default();
+                        scope.get_heap_statistics(heap_stats);
+
+                        let heap_stats = V8HeapStatistics {
+                            total_heap_size: heap_stats.total_heap_size(),
+                            total_heap_size_executable: heap_stats.total_heap_size_executable(),
+                            total_physical_size: heap_stats.total_physical_size(),
+                            total_available_size: heap_stats.total_available_size(),
+                            used_heap_size: heap_stats.used_heap_size(),
+                            heap_size_limit: heap_stats.heap_size_limit(),
+                            malloced_memory: heap_stats.malloced_memory(),
+                            does_zap_garbage: heap_stats.does_zap_garbage(),
+                            number_of_native_contexts: heap_stats.number_of_native_contexts(),
+                            number_of_detached_contexts: heap_stats.number_of_detached_contexts(),
+
+                        };
+                        
+                        tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
                     }
                 };
             }
@@ -336,7 +318,6 @@ impl V8Facade {
     }
 
     pub fn run<S: Into<String>>(&self, source: S) -> Result<Output, String> {
-        // TODO: Maybe come up with an error struct?
         self.input
             .send(Input::Source(source.into()))
             .map_err(|e| format!("{:?}", e))?;
@@ -358,6 +339,18 @@ impl V8Facade {
 
         self.output.recv().map_err(|e| format!("{:?}", e))
     }
+
+    pub fn get_heap_statistics(&self) -> Result<V8HeapStatistics, String> {
+        self.input.send(Input::HeapReport).map_err(|e| format!("{:?}", e))?;
+
+        let result = self.output.recv().map_err(|e| format!("{:?}", e))?;
+
+        if let Output::HeapStatistics(s) = result {
+            Ok(s)
+        } else {
+            Err(String::from("Couldn't get the heap statistics..."))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -371,7 +364,10 @@ mod tests {
 
         if let Output::Error(e) = result {
             assert_eq!("", e.stack_trace);
-            assert_eq!("Couldn't resolve function `what`, V8 returned: 'undefined'", e.exception);
+            assert_eq!(
+                "Couldn't resolve function `what`, V8 returned: 'undefined'",
+                e.exception
+            );
         } else {
             assert!(false, "I guess no error was thrown...");
         }

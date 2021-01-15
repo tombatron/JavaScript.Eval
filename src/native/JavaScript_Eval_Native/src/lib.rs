@@ -1,4 +1,4 @@
-use std::os::raw::c_char;
+use std::{os::raw::c_char, unreachable};
 use std::{
     ffi::{CStr, CString},
     ptr,
@@ -48,6 +48,21 @@ pub struct PrimitiveResult {
     pub object_value: *mut c_char,
 
     pub error: *mut UnsafeJavaScriptError,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct V8HeapStatistics {
+    pub total_heap_size: usize,
+    pub total_heap_size_executable: usize,
+    pub total_physical_size: usize,
+    pub total_available_size: usize,
+    pub used_heap_size: usize,
+    pub heap_size_limit: usize,
+    pub malloced_memory: usize,
+    pub does_zap_garbage: usize,
+    pub number_of_native_contexts: usize,
+    pub number_of_detached_contexts: usize,
 }
 
 impl PrimitiveResult {
@@ -250,7 +265,11 @@ pub unsafe extern "C" fn exec(
                 Box::into_raw(Box::new(PrimitiveResult::create_for_object(ov)))
             }
         },
+
         Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
+
+        // You can't get heap statistics out of V8 by invoking script so this result is impossible.
+        Output::HeapStatistics(_) => unreachable!()
     }
 }
 
@@ -300,8 +319,24 @@ pub unsafe extern "C" fn call(
                 Box::into_raw(Box::new(PrimitiveResult::create_for_object(ov)))
             }
         },
+
         Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
+
+        // You can't get heap statistics by invoking a JavaScript function so this would be impossible. 
+        Output::HeapStatistics(_) => unreachable!()
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_heap_statistics(v8_facade_ptr: *mut V8Facade) -> *mut V8HeapStatistics {
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    let heap_stats = instance.get_heap_statistics().unwrap();
+
+    Box::into_raw(Box::new(heap_stats))
 }
 
 #[no_mangle]
@@ -336,5 +371,12 @@ pub unsafe extern "C" fn free_primitive_result(primitive_result_ptr: *mut Primit
         CString::from_raw((*error).stack_trace);
 
         Box::from_raw(primitive_result.error);
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_heap_stats(heap_stats_ptr: *mut V8HeapStatistics) {
+    if !heap_stats_ptr.is_null() {
+        Box::from_raw(heap_stats_ptr);
     }
 }

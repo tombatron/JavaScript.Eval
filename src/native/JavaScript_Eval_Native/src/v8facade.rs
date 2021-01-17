@@ -208,7 +208,7 @@ impl V8Facade {
                         let desc = v8::String::new(scope, v.as_str());
 
                         v8::Symbol::new(scope, desc).into()
-                    },
+                    }
 
                     FunctionParameter::ObjectValue(o) => {
                         let object_json = v8::String::new(scope, o.as_str()).unwrap();
@@ -255,9 +255,13 @@ impl V8Facade {
         }
     }
 
-    fn json_parse<'s>(json_value: v8::Local<v8::Value>, scope: &mut v8::HandleScope<'s>, global: v8::Local<v8::Object>) -> v8::Local<'s, v8::Value> {
+    fn json_parse<'s>(
+        json_value: v8::Local<v8::Value>,
+        scope: &mut v8::HandleScope<'s>,
+        global: v8::Local<v8::Object>,
+    ) -> v8::Local<'s, v8::Value> {
         let scope = &mut v8::EscapableHandleScope::new(scope);
-        
+
         let json = v8::String::new(scope, "JSON").unwrap();
         let json = v8::Local::from(json);
         let json = global.get(scope, json).unwrap();

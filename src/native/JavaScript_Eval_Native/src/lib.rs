@@ -33,6 +33,24 @@ pub struct UnsafeJavaScriptError {
 
 #[repr(C)]
 #[derive(Debug)]
+pub struct V8HeapStatistics {
+    pub total_heap_size: usize,
+    pub total_heap_size_executable: usize,
+    pub total_physical_size: usize,
+    pub total_available_size: usize,
+    pub used_heap_size: usize,
+    pub heap_size_limit: usize,
+    pub malloced_memory: usize,
+    pub does_zap_garbage: usize,
+    pub number_of_native_contexts: usize,
+    pub number_of_detached_contexts: usize,
+    pub peak_malloced_memory: usize,
+    pub used_global_handles_size: usize,
+    pub total_global_handles_size: usize,
+}
+
+#[repr(C)]
+#[derive(Debug)]
 pub struct PrimitiveResult {
     pub number_value: f64,
     pub number_value_set: bool,
@@ -50,136 +68,77 @@ pub struct PrimitiveResult {
     pub error: *mut UnsafeJavaScriptError,
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct V8HeapStatistics {
-    pub total_heap_size: usize,
-    pub total_heap_size_executable: usize,
-    pub total_physical_size: usize,
-    pub total_available_size: usize,
-    pub used_heap_size: usize,
-    pub heap_size_limit: usize,
-    pub malloced_memory: usize,
-    pub does_zap_garbage: usize,
-    pub number_of_native_contexts: usize,
-    pub number_of_detached_contexts: usize,
-    pub peak_malloced_memory: usize,
-    pub used_global_handles_size: usize,
-    pub total_global_handles_size: usize,
-}
-
 impl PrimitiveResult {
-    pub fn create_for_number(number: f64) -> PrimitiveResult {
-        PrimitiveResult {
-            number_value: number,
-            number_value_set: true,
 
+    pub fn blank() -> PrimitiveResult {
+        PrimitiveResult {
+            number_value: 0.0,
+            number_value_set: false,
             bigint_value: 0,
             bigint_value_set: false,
-
             bool_value: false,
             bool_value_set: false,
-
             string_value: ptr::null_mut(),
             array_value: ptr::null_mut(),
             object_value: ptr::null_mut(),
-
             error: ptr::null_mut(),
+        }
+    }
+
+    pub fn create_for_number(number: f64) -> PrimitiveResult {
+        let blank_result = PrimitiveResult::blank();
+
+        PrimitiveResult {
+            number_value: number,
+            number_value_set: true,
+            ..blank_result
         }
     }
 
     pub fn create_for_bigint(bigint: i64) -> PrimitiveResult {
-        PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
+        let blank_result = PrimitiveResult::blank();
 
+        PrimitiveResult {
             bigint_value: bigint,
             bigint_value_set: true,
-
-            bool_value: false,
-            bool_value_set: false,
-
-            string_value: ptr::null_mut(),
-            array_value: ptr::null_mut(),
-            object_value: ptr::null_mut(),
-
-            error: ptr::null_mut(),
+            ..blank_result
         }
     }
 
     pub fn create_for_bool(boolean: bool) -> PrimitiveResult {
+        let blank_result = PrimitiveResult::blank();
+
         PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
-
-            bigint_value: 0,
-            bigint_value_set: false,
-
             bool_value: boolean,
             bool_value_set: true,
-
-            string_value: ptr::null_mut(),
-            array_value: ptr::null_mut(),
-            object_value: ptr::null_mut(),
-
-            error: ptr::null_mut(),
+            ..blank_result
         }
     }
 
     pub fn create_for_string(string: String) -> PrimitiveResult {
+        let blank_result = PrimitiveResult::blank();
+
         PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
-
-            bigint_value: 0,
-            bigint_value_set: false,
-
-            bool_value: false,
-            bool_value_set: false,
-
             string_value: CString::new(string).unwrap().into_raw(),
-            array_value: ptr::null_mut(),
-            object_value: ptr::null_mut(),
-
-            error: ptr::null_mut(),
+            ..blank_result
         }
     }
 
     pub fn create_for_array(array: String) -> PrimitiveResult {
+        let blank_result = PrimitiveResult::blank();
+
         PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
-
-            bigint_value: 0,
-            bigint_value_set: false,
-
-            bool_value: false,
-            bool_value_set: false,
-
-            string_value: ptr::null_mut(),
             array_value: CString::new(array).unwrap().into_raw(),
-            object_value: ptr::null_mut(),
-
-            error: ptr::null_mut(),
+            ..blank_result
         }
     }
 
     pub fn create_for_object(object: String) -> PrimitiveResult {
+        let blank_result = PrimitiveResult::blank();
+
         PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
-
-            bigint_value: 0,
-            bigint_value_set: false,
-
-            bool_value: false,
-            bool_value_set: false,
-
-            string_value: ptr::null_mut(),
-            array_value: ptr::null_mut(),
             object_value: CString::new(object).unwrap().into_raw(),
-
-            error: ptr::null_mut(),
+            ..blank_result
         }
     }
 
@@ -196,21 +155,11 @@ impl PrimitiveResult {
 
         let unsafe_error = Box::into_raw(Box::new(unsafe_error));
 
+        let blank_result = PrimitiveResult::blank();
+
         PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
-
-            bigint_value: 0,
-            bigint_value_set: false,
-
-            bool_value: false,
-            bool_value_set: false,
-
-            string_value: ptr::null_mut(),
-            array_value: ptr::null_mut(),
-            object_value: ptr::null_mut(),
-
             error: unsafe_error,
+            ..blank_result
         }
     }
 }

@@ -10,9 +10,9 @@ namespace JavaScript.Eval.Exceptions
         public JavaScriptException() { }
 
         public JavaScriptException(UnsafeJavaScriptError javaScriptError) :
-            base(Marshal.PtrToStringAuto(javaScriptError.exception))
+            base(Marshal.PtrToStringAnsi(javaScriptError.exception))
         {
-            _stackTrace = Marshal.PtrToStringAuto(javaScriptError.stack_trace);
+            _stackTrace = Marshal.PtrToStringAnsi(javaScriptError.stack_trace);
         }
 
         public JavaScriptException(string message) :

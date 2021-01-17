@@ -33,7 +33,7 @@ namespace JavaScript.Eval
 
         public TResult Eval<TResult>(string script)
         {
-            var scriptPointer = Marshal.StringToHGlobalAuto(script);
+            var scriptPointer = Marshal.StringToHGlobalAnsi(script);
 
             var primitiveResultPointer = Native.exec(_handle, scriptPointer);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
@@ -48,7 +48,7 @@ namespace JavaScript.Eval
 
         public void Eval(string script)
         {
-            var scriptPointer = Marshal.StringToHGlobalAuto(script);
+            var scriptPointer = Marshal.StringToHGlobalAnsi(script);
 
             var primitiveResultPointer = Native.exec(_handle, scriptPointer);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
@@ -64,7 +64,7 @@ namespace JavaScript.Eval
 
         public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
         {
-            var funcNamePointer = Marshal.StringToHGlobalAuto(funcName);
+            var funcNamePointer = Marshal.StringToHGlobalAnsi(funcName);
 
             var primitiveResultPointer = Native.call(_handle, funcNamePointer, funcParams, funcParams.Length);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
@@ -104,19 +104,19 @@ namespace JavaScript.Eval
             }
             else if (primitiveResult.string_value != IntPtr.Zero)
             {
-                var stringValue = Marshal.PtrToStringAuto(primitiveResult.string_value);
+                var stringValue = Marshal.PtrToStringAnsi(primitiveResult.string_value);
 
                 return (TResult)Convert.ChangeType(stringValue, typeof(TResult));
             }
             else if (primitiveResult.array_value != IntPtr.Zero)
             {
-                var arrayStringValue = Marshal.PtrToStringAuto(primitiveResult.array_value);
+                var arrayStringValue = Marshal.PtrToStringAnsi(primitiveResult.array_value);
 
                 return JsonSerializer.Deserialize<TResult>(arrayStringValue);
             }
             else if (primitiveResult.object_value != IntPtr.Zero)
             {
-                var objectStringValue = Marshal.PtrToStringAuto(primitiveResult.object_value);
+                var objectStringValue = Marshal.PtrToStringAnsi(primitiveResult.object_value);
 
                 return JsonSerializer.Deserialize<TResult>(objectStringValue);
             }

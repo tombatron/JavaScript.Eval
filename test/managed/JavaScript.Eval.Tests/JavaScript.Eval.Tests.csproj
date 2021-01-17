@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
@@ -17,9 +16,11 @@
     <ProjectReference Include="..\..\..\src\managed\JavaScript.Eval\JavaScript.Eval.csproj" />
   </ItemGroup>
 
-  <Target Name="test" BeforeTargets="BeforeBuild">
-    <Exec Command="cargo build --manifest-path ../../../src/native/JavaScript_Eval_Native/Cargo.toml --target-dir bin/Debug/netcoreapp3.1/" />
-    <Exec Command="cp bin/Debug/netcoreapp3.1/debug/libjavascript_eval_native.so bin/Debug/netcoreapp3.1/." />
-  </Target>
-
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\libs\runtimes\win-x64\native\javascript_eval_native.dll" Condition="'$(OS)' == 'Windows_NT'">
+      <Link>javascript_eval_native.dll</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>False</Visible>
+    </None>
+  </ItemGroup>
 </Project>

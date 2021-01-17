@@ -42,7 +42,7 @@ namespace JavaScript.Eval
         public static Primitive FromObject<T>(T o)
         {
             var serializedObject = JsonSerializer.Serialize<T>(o);
-            var serializedObjectPointer = Marshal.StringToHGlobalAuto(serializedObject);
+            var serializedObjectPointer = Marshal.StringToHGlobalAnsi(serializedObject);
 
             return new Primitive
             {

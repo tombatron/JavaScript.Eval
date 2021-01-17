@@ -110,6 +110,25 @@ namespace JavaScript.Eval.Tests
             Assert.Equal("World!", result.Hello);
         }
 
+        [Fact]
+        public void ItCanGetHeapStatistics() 
+        {
+            using var engine = new JavaScriptEngine();
+
+            var heapStatistics = engine.GetHeapStatistics();
+
+            Assert.True(heapStatistics.used_heap_size > 0);
+            Assert.True(heapStatistics.total_heap_size > 0);
+            Assert.True(heapStatistics.total_heap_size > heapStatistics.used_heap_size);
+            Assert.True(heapStatistics.heap_size_limit > 0);
+            Assert.True(heapStatistics.heap_size_limit > heapStatistics.total_heap_size);
+            Assert.True(heapStatistics.malloced_memory > 0);
+            Assert.True(heapStatistics.peak_malloced_memory > 0);
+            Assert.Equal(0, heapStatistics.used_global_handles_size);
+            Assert.Equal(0, heapStatistics.total_global_handles_size);
+            Assert.Equal(1, heapStatistics.number_of_native_contexts);
+        }
+
         public class Message
         {
             public string Hello { get; set; }

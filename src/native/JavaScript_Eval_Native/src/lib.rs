@@ -63,6 +63,9 @@ pub struct V8HeapStatistics {
     pub does_zap_garbage: usize,
     pub number_of_native_contexts: usize,
     pub number_of_detached_contexts: usize,
+    pub peak_malloced_memory: usize,
+    pub used_global_handles_size: usize,
+    pub total_global_handles_size: usize,
 }
 
 impl PrimitiveResult {

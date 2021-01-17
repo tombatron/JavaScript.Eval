@@ -286,6 +286,7 @@ impl V8Facade {
 
                     Input::HeapReport => {
                         let heap_stats = &mut v8::HeapStatistics::default();
+
                         scope.get_heap_statistics(heap_stats);
 
                         let heap_stats = V8HeapStatistics {
@@ -299,7 +300,9 @@ impl V8Facade {
                             does_zap_garbage: heap_stats.does_zap_garbage(),
                             number_of_native_contexts: heap_stats.number_of_native_contexts(),
                             number_of_detached_contexts: heap_stats.number_of_detached_contexts(),
-
+                            peak_malloced_memory: heap_stats.peak_malloced_memory(),
+                            used_global_handles_size: heap_stats.used_global_handles_size(),
+                            total_global_handles_size: heap_stats.total_global_handles_size(),
                         };
                         
                         tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
@@ -371,5 +374,22 @@ mod tests {
         } else {
             assert!(false, "I guess no error was thrown...");
         }
+    }
+
+    #[test]
+    fn it_can_get_heap_statistics() {
+        let eval = V8Facade::new();
+        let result = eval.get_heap_statistics().unwrap();
+
+        assert!(result.used_heap_size > 0);
+        assert!(result.total_heap_size > 0);
+        assert!(result.total_heap_size > result.used_heap_size);
+        assert!(result.heap_size_limit > 0);
+        assert!(result.heap_size_limit > result.total_heap_size);
+        assert!(result.malloced_memory > 0);
+        assert!(result.peak_malloced_memory > 0);
+        assert_eq!(result.used_global_handles_size, 0);
+        assert_eq!(result.total_global_handles_size, 0);
+        assert_ne!(result.number_of_native_contexts, 0);
     }
 }

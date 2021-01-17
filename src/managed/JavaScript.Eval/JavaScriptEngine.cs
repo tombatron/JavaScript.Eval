@@ -78,6 +78,16 @@ namespace JavaScript.Eval
             return result;
         }
 
+        public HeapStatistics GetHeapStatistics()
+        {
+            var heapStatisticsPointer = Native.get_heap_statistics(_handle);
+            var heapStatistics = Marshal.PtrToStructure<HeapStatistics>(heapStatisticsPointer);
+
+            Native.free_heap_stats(heapStatisticsPointer);
+
+            return heapStatistics;
+        }
+
         private TResult MapPrimitiveResult<TResult>(PrimitiveResult primitiveResult)
         {
             if (primitiveResult.number_value_set > 0)
@@ -190,5 +200,11 @@ namespace JavaScript.Eval
 
         [DllImport(LIB_NAME)]
         internal static extern void free_primitive_result(IntPtr handle);
+
+        [DllImport(LIB_NAME)]
+        internal static extern IntPtr get_heap_statistics(JavaScriptEngineHandle handle);
+
+        [DllImport(LIB_NAME)]
+        internal static extern void free_heap_stats(IntPtr statisticsHandle);
     }
 }

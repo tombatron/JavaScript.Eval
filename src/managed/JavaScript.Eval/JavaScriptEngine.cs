@@ -155,15 +155,6 @@ namespace JavaScript.Eval
             _isDisposed = true;
         }
 
-        // private static string CreateManagedString(IntPtr stringPointer)
-        // {
-        //     var result = Marshal.PtrToStringAuto(stringPointer);
-
-        //     Native.free_string(stringPointer);
-
-        //     return result;
-        // }
-
         private static void Free(Primitive[] primitives)
         {
             foreach (var p in primitives)
@@ -176,6 +167,7 @@ namespace JavaScript.Eval
         {
             Marshal.FreeHGlobal(primitive.string_value);
             Marshal.FreeHGlobal(primitive.symbol_value);
+            Marshal.FreeHGlobal(primitive.object_value);
         }
     }
 

@@ -73,11 +73,23 @@ namespace JavaScript.Eval.Tests
         }
 
         [Fact]
+        public void ItCanCallFunctionWithObjectParameter()
+        {
+            using var engine = new JavaScriptEngine();
+
+            engine.Eval("function echo(obj) { return obj.Hello; }");
+
+            var result = engine.Call<string>("echo", Primitive.FromObject(new Message { Hello = "World!" }));
+
+            Assert.Equal("World!", result);
+        }
+
+        [Fact]
         public void ItWillThrowExceptionIfYouCallNonExistentFunction()
         {
             using var engine = new JavaScriptEngine();
 
-            var exception = Assert.Throws<JavaScriptException>(() => 
+            var exception = Assert.Throws<JavaScriptException>(() =>
             {
                 engine.Call<string>("thisDoesntEvenExist");
             });
@@ -111,7 +123,7 @@ namespace JavaScript.Eval.Tests
         }
 
         [Fact]
-        public void ItCanGetHeapStatistics() 
+        public void ItCanGetHeapStatistics()
         {
             using var engine = new JavaScriptEngine();
 

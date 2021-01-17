@@ -42,6 +42,7 @@ pub enum FunctionParameter {
     NumberValue(f64),
     BigIntValue(i64),
     BoolValue(bool),
+    ObjectValue(String),
 }
 
 pub enum JavaScriptResult {
@@ -126,6 +127,16 @@ impl FunctionParameter {
             }
         }
 
+        if !p.object_value.is_null() {
+            unsafe {
+                return FunctionParameter::ObjectValue(
+                    CStr::from_ptr(p.object_value)
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+            }
+        }
+
         if p.number_value_set {
             return FunctionParameter::NumberValue(p.number_value);
         }
@@ -197,6 +208,12 @@ impl V8Facade {
                         let desc = v8::String::new(scope, v.as_str());
 
                         v8::Symbol::new(scope, desc).into()
+                    },
+
+                    FunctionParameter::ObjectValue(o) => {
+                        let object_json = v8::String::new(scope, o.as_str()).unwrap();
+
+                        V8Facade::json_parse(object_json.into(), scope, global)
                     }
                 }
             })
@@ -236,6 +253,24 @@ impl V8Facade {
                     .unwrap();
             }
         }
+    }
+
+    fn json_parse<'s>(json_value: v8::Local<v8::Value>, scope: &mut v8::HandleScope<'s>, global: v8::Local<v8::Object>) -> v8::Local<'s, v8::Value> {
+        let scope = &mut v8::EscapableHandleScope::new(scope);
+        
+        let json = v8::String::new(scope, "JSON").unwrap();
+        let json = v8::Local::from(json);
+        let json = global.get(scope, json).unwrap();
+        let json = v8::Local::<v8::Object>::try_from(json).unwrap();
+
+        let parse = v8::String::new(scope, "parse").unwrap();
+        let parse = v8::Local::from(parse);
+        let parse = json.get(scope, parse).unwrap();
+        let parse = v8::Local::<v8::Function>::try_from(parse).unwrap();
+
+        let parse_result = parse.call(scope, global.into(), &[json_value]).unwrap();
+
+        scope.escape(parse_result)
     }
 
     #[allow(unreachable_code)]
@@ -304,7 +339,7 @@ impl V8Facade {
                             used_global_handles_size: heap_stats.used_global_handles_size(),
                             total_global_handles_size: heap_stats.total_global_handles_size(),
                         };
-                        
+
                         tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
                     }
                 };
@@ -344,7 +379,9 @@ impl V8Facade {
     }
 
     pub fn get_heap_statistics(&self) -> Result<V8HeapStatistics, String> {
-        self.input.send(Input::HeapReport).map_err(|e| format!("{:?}", e))?;
+        self.input
+            .send(Input::HeapReport)
+            .map_err(|e| format!("{:?}", e))?;
 
         let result = self.output.recv().map_err(|e| format!("{:?}", e))?;
 

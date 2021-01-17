@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace JavaScript.Eval
 {
@@ -14,6 +15,7 @@ namespace JavaScript.Eval
         public byte bool_value_set { get; set; }
         public IntPtr string_value { get; set; }
         public IntPtr symbol_value { get; set; }
+        public IntPtr object_value {get;set;}
 
         public static implicit operator Primitive(sbyte b) => new Primitive { number_value = b, number_value_set = 1 };
 
@@ -36,5 +38,16 @@ namespace JavaScript.Eval
         public static implicit operator Primitive(string s) => new Primitive { string_value = Marshal.StringToHGlobalAuto(s) };
 
         public static implicit operator Primitive(SymbolPrimitive symbolPrimitive) => new Primitive { symbol_value = Marshal.StringToHGlobalAuto(symbolPrimitive.Symbol) };
+
+        public static Primitive FromObject<T>(T o)
+        {
+            var serializedObject = JsonSerializer.Serialize<T>(o);
+            var serializedObjectPointer = Marshal.StringToHGlobalAuto(serializedObject);
+
+            return new Primitive
+            {
+                object_value = serializedObjectPointer
+            };
+        }
     }
 }

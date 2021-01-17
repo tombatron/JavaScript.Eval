@@ -22,6 +22,7 @@ pub struct Primitive {
 
     pub string_value: *mut c_char,
     pub symbol_value: *mut c_char,
+    pub object_value: *mut c_char,
 }
 
 #[repr(C)]

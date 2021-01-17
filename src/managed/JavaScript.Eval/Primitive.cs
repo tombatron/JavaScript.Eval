@@ -35,14 +35,14 @@ namespace JavaScript.Eval
 
         public static implicit operator Primitive(bool b) => new Primitive { bool_value = (byte)(b ? 1 : 0), bool_value_set = 1 };
 
-        public static implicit operator Primitive(string s) => new Primitive { string_value = Marshal.StringToHGlobalAuto(s) };
+        public static implicit operator Primitive(string s) => new Primitive { string_value = Marshal.StringToCoTaskMemUTF8(s) };
 
-        public static implicit operator Primitive(SymbolPrimitive symbolPrimitive) => new Primitive { symbol_value = Marshal.StringToHGlobalAuto(symbolPrimitive.Symbol) };
+        public static implicit operator Primitive(SymbolPrimitive symbolPrimitive) => new Primitive { symbol_value = Marshal.StringToCoTaskMemUTF8(symbolPrimitive.Symbol) };
 
         public static Primitive FromObject<T>(T o)
         {
             var serializedObject = JsonSerializer.Serialize<T>(o);
-            var serializedObjectPointer = Marshal.StringToHGlobalAnsi(serializedObject);
+            var serializedObjectPointer = Marshal.StringToCoTaskMemUTF8(serializedObject);
 
             return new Primitive
             {

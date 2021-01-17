@@ -33,7 +33,7 @@ namespace JavaScript.Eval
 
         public TResult Eval<TResult>(string script)
         {
-            var scriptPointer = Marshal.StringToHGlobalAnsi(script);
+            var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
 
             var primitiveResultPointer = Native.exec(_handle, scriptPointer);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
@@ -48,7 +48,7 @@ namespace JavaScript.Eval
 
         public void Eval(string script)
         {
-            var scriptPointer = Marshal.StringToHGlobalAnsi(script);
+            var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
 
             var primitiveResultPointer = Native.exec(_handle, scriptPointer);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
@@ -104,19 +104,19 @@ namespace JavaScript.Eval
             }
             else if (primitiveResult.string_value != IntPtr.Zero)
             {
-                var stringValue = Marshal.PtrToStringAnsi(primitiveResult.string_value);
+                var stringValue = Marshal.PtrToStringUTF8(primitiveResult.string_value);
 
                 return (TResult)Convert.ChangeType(stringValue, typeof(TResult));
             }
             else if (primitiveResult.array_value != IntPtr.Zero)
             {
-                var arrayStringValue = Marshal.PtrToStringAnsi(primitiveResult.array_value);
+                var arrayStringValue = Marshal.PtrToStringUTF8(primitiveResult.array_value);
 
                 return JsonSerializer.Deserialize<TResult>(arrayStringValue);
             }
             else if (primitiveResult.object_value != IntPtr.Zero)
             {
-                var objectStringValue = Marshal.PtrToStringAnsi(primitiveResult.object_value);
+                var objectStringValue = Marshal.PtrToStringUTF8(primitiveResult.object_value);
 
                 return JsonSerializer.Deserialize<TResult>(objectStringValue);
             }

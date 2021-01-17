@@ -17,6 +17,16 @@ namespace JavaScript.Eval.Tests
         }
 
         [Fact]
+        public void ItCanExecuteASimpleScriptWithUnicode()
+        {
+            using var engine = new JavaScriptEngine();
+
+            var result = engine.Eval<string>("\"😏\";");
+
+            Assert.Equal("😏", result);
+        }
+
+        [Fact]
         public void ItCanCallFunction()
         {
             using var engine = new JavaScriptEngine();
@@ -26,6 +36,18 @@ namespace JavaScript.Eval.Tests
             var result = engine.Call<string>("helloWorld");
 
             Assert.Equal("Hello World!", result);
+        }
+
+        [Fact]
+        public void ItCanCallAFunctionThatReturnsUnicode()
+        {
+            using var engine = new JavaScriptEngine();
+
+            engine.Eval("function helloWorld() { return \"🐱‍👤\"; }");
+
+            var result = engine.Call<string>("helloWorld");
+
+            Assert.Equal("🐱‍👤", result);
         }
 
         [Fact]

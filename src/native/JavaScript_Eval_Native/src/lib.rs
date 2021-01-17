@@ -190,6 +190,8 @@ pub unsafe extern "C" fn exec(
 ) -> *mut PrimitiveResult {
     let script = CStr::from_ptr(script).to_string_lossy().into_owned();
 
+    println!("This is what script Rust is seeing: {}", script);
+
     let instance = {
         assert!(!v8_facade_ptr.is_null());
         &mut *v8_facade_ptr

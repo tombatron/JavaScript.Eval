@@ -83,7 +83,7 @@ namespace JavaScript.Eval.Tests
             });
 
             Assert.Equal("Couldn't resolve function `thisDoesntEvenExist`, V8 returned: 'undefined'", exception.Message);
-            Assert.Null(exception.StackTrace);
+            Assert.Empty(exception.StackTrace);
         }
 
         [Fact]

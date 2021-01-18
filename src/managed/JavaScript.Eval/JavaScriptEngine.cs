@@ -40,7 +40,7 @@ namespace JavaScript.Eval
 
             var result = MapPrimitiveResult<TResult>(primitiveResult);
 
-            Marshal.FreeHGlobal(scriptPointer);
+            Marshal.FreeCoTaskMem(scriptPointer);
             Native.free_primitive_result(primitiveResultPointer);
 
             return result;
@@ -58,20 +58,20 @@ namespace JavaScript.Eval
                 throw exception;
             }
 
-            Marshal.FreeHGlobal(scriptPointer);
+            Marshal.FreeCoTaskMem(scriptPointer);
             Native.free_primitive_result(primitiveResultPointer);
         }
 
         public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
         {
-            var funcNamePointer = Marshal.StringToHGlobalAnsi(funcName);
+            var funcNamePointer = Marshal.StringToCoTaskMemUTF8(funcName);
 
             var primitiveResultPointer = Native.call(_handle, funcNamePointer, funcParams, funcParams.Length);
             var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(primitiveResultPointer);
 
             var result = MapPrimitiveResult<TResult>(primitiveResult);
 
-            Marshal.FreeHGlobal(funcNamePointer);
+            Marshal.FreeCoTaskMem(funcNamePointer);
             Free(funcParams);
             Native.free_primitive_result(primitiveResultPointer);
 
@@ -165,9 +165,9 @@ namespace JavaScript.Eval
 
         private static void Free(Primitive primitive)
         {
-            Marshal.FreeHGlobal(primitive.string_value);
-            Marshal.FreeHGlobal(primitive.symbol_value);
-            Marshal.FreeHGlobal(primitive.object_value);
+            Marshal.FreeCoTaskMem(primitive.string_value);
+            Marshal.FreeCoTaskMem(primitive.symbol_value);
+            Marshal.FreeCoTaskMem(primitive.object_value);
         }
     }
 

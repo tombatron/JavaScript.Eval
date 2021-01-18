@@ -5,7 +5,7 @@
     <title>JavaScript.Eval.x64-Windows-Native</title>
     <version>0.0.1</version>
     <description>Required binary package for using JavaScript.Eval on Windows.</description>
-    <authors>Tom Hanks</authors>
+    <authors>Owen Nelson, Tom Hanks</authors>
     <projectUrl>https://github.com/tombatron/JavaScript.Eval</projectUrl>
     <repository type="git" url="https://github.com/tombatron/JavaScript.Eval" />
     

@@ -15,7 +15,7 @@ namespace JavaScript.Eval
         public byte bool_value_set { get; set; }
         public IntPtr string_value { get; set; }
         public IntPtr symbol_value { get; set; }
-        public IntPtr object_value {get;set;}
+        public IntPtr object_value { get; set; }
 
         public static implicit operator Primitive(sbyte b) => new Primitive { number_value = b, number_value_set = 1 };
 
@@ -48,6 +48,21 @@ namespace JavaScript.Eval
             {
                 object_value = serializedObjectPointer
             };
+        }
+
+        internal static void Free(Primitive[] primitives)
+        {
+            foreach (var p in primitives)
+            {
+                Free(p);
+            }
+        }
+
+        internal static void Free(Primitive primitive)
+        {
+            Marshal.FreeCoTaskMem(primitive.string_value);
+            Marshal.FreeCoTaskMem(primitive.symbol_value);
+            Marshal.FreeCoTaskMem(primitive.object_value);
         }
     }
 }

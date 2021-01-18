@@ -72,7 +72,7 @@ namespace JavaScript.Eval
             var result = MapPrimitiveResult<TResult>(primitiveResult);
 
             Marshal.FreeCoTaskMem(funcNamePointer);
-            Free(funcParams);
+            Primitive.Free(funcParams);
             Native.free_primitive_result(primitiveResultPointer);
 
             return result;
@@ -153,21 +153,6 @@ namespace JavaScript.Eval
             _handle.Dispose();
 
             _isDisposed = true;
-        }
-
-        private static void Free(Primitive[] primitives)
-        {
-            foreach (var p in primitives)
-            {
-                Free(p);
-            }
-        }
-
-        private static void Free(Primitive primitive)
-        {
-            Marshal.FreeCoTaskMem(primitive.string_value);
-            Marshal.FreeCoTaskMem(primitive.symbol_value);
-            Marshal.FreeCoTaskMem(primitive.object_value);
         }
     }
 

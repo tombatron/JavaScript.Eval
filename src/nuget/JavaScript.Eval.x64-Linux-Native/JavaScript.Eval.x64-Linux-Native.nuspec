@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>JavaScript.Eval.x64-Linux-Native</id>
+    <title>JavaScript.Eval.x64-Linux-Native</title>
+    <version>0.0.1</version>
+    <description>Required binary package for using JavaScript.Eval on Linux.</description>
+    <authors>Tom Hanks</authors>
+    <projectUrl>https://github.com/tombatron/JavaScript.Eval</projectUrl>
+    <repository type="git" url="https://github.com/tombatron/JavaScript.Eval" />
+    
+    <releaseNotes>Uses V8 version 8.8.278.2.</releaseNotes>
+  </metadata>
+  <files>
+    <file src="../../../libs/runtimes/linux-x64/native/libjavascript_eval_native.so" target="runtimes/linux-x64/native/" />
+    <file src="JavaScript.Eval.x64-Linux-Proxy.targets" target="build" />
+  </files>
+</package>

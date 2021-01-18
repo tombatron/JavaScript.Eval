@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>JavaScript.Eval.x64-Windows-Native</id>
+    <title>JavaScript.Eval.x64-Windows-Native</title>
+    <version>0.0.1</version>
+    <description>Required binary package for using JavaScript.Eval on Windows.</description>
+    <authors>Tom Hanks</authors>
+    <projectUrl>https://github.com/tombatron/JavaScript.Eval</projectUrl>
+    <repository type="git" url="https://github.com/tombatron/JavaScript.Eval" />
+    
+    <releaseNotes>Uses V8 version 8.8.278.2.</releaseNotes>
+  </metadata>
+  <files>
+    <file src="../../../libs/runtimes/win-x64/native/javascript_eval_native.dll" target="runtimes/win-x64/native/" />
+    <file src="JavaScript.Eval.x64-Windows-Proxy.targets" target="build" />
+  </files>
+</package>

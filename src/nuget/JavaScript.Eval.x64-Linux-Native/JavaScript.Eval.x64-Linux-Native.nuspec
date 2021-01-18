@@ -13,6 +13,6 @@
   </metadata>
   <files>
     <file src="../../../libs/runtimes/linux-x64/native/libjavascript_eval_native.so" target="runtimes/linux-x64/native/" />
-    <file src="JavaScript.Eval.x64-Linux-Proxy.targets" target="build" />
+    <file src="JavaScript.Eval.x64-Linux-Native.targets" target="build" />
   </files>
 </package>

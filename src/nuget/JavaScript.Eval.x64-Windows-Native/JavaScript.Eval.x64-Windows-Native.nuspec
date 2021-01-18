@@ -13,6 +13,6 @@
   </metadata>
   <files>
     <file src="../../../libs/runtimes/win-x64/native/javascript_eval_native.dll" target="runtimes/win-x64/native/" />
-    <file src="JavaScript.Eval.x64-Windows-Proxy.targets" target="build" />
+    <file src="JavaScript.Eval.x64-Windows-Native.targets" target="build" />
   </files>
 </package>

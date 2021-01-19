@@ -161,13 +161,30 @@ pub struct V8Facade {
 
 impl V8Facade {
     // https://github.com/denoland/rusty_v8/blob/584a0378002d2f952c55dd5f3d34ea2017ed0c7b/tests/test_api.rs#L565
-    fn eval<'s>(scope: &mut v8::HandleScope<'s>, code: &str) -> Option<v8::Local<'s, v8::Value>> {
-        let scope = &mut v8::EscapableHandleScope::new(scope);
+    fn eval<'s>(
+        scope: &mut v8::TryCatch<'s, v8::HandleScope>,
+        code: &str,
+    ) -> Result<Option<v8::Local<'s, v8::Value>>, String> {
         let source = v8::String::new(scope, &code).unwrap();
-        let script = v8::Script::compile(scope, source, None).unwrap();
+        let script = v8::Script::compile(scope, source, None);
 
-        let r = script.run(scope);
-        r.map(|v| scope.escape(v))
+        match script {
+            Some(script) => {
+                let scope = &mut v8::EscapableHandleScope::new(scope);
+                let r = script.run(scope);
+                Ok(r.map(|v| scope.escape(v)))
+            }
+
+            None => {
+                let exception = scope.exception().unwrap();
+                let exception = exception.to_rust_string_lossy(scope);
+
+                Err(format!(
+                    "There was an issue compiling the provided script: {}",
+                    exception
+                ))
+            }
+        }
     }
 
     fn call_func<'s>(
@@ -300,7 +317,21 @@ impl V8Facade {
                         let tc = &mut v8::TryCatch::new(scope);
                         let result = V8Facade::eval(tc, code.as_str());
 
-                        V8Facade::send_result_to_output(result, tc, global, &tx_out);
+                        //V8Facade::send_result_to_output(result, tc, global, &tx_out);
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_output(result, tc, global, &tx_out);
+                            }
+
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
+
+                                tx_out.send(Output::Error(error)).unwrap();
+                            }
+                        }
                     }
 
                     Input::Function(func_args) => {
@@ -399,7 +430,7 @@ impl V8Facade {
 
 #[cfg(test)]
 mod tests {
-    use super::{Output, V8Facade};
+    use super::{JavaScriptResult, Output, V8Facade};
 
     #[test]
     fn it_gets_error_with_bad_function_call() {
@@ -432,5 +463,36 @@ mod tests {
         assert_eq!(result.used_global_handles_size, 0);
         assert_eq!(result.total_global_handles_size, 0);
         assert_ne!(result.number_of_native_contexts, 0);
+    }
+
+    #[test]
+    fn it_gets_error_when_provided_bad_javascript_for_eval() {
+        let eval = V8Facade::new();
+        let result = eval
+            .run("fucktion () { return \"Hello World!\"; }")
+            .unwrap();
+
+        if let Output::Error(e) = result {
+            assert_eq!("", e.stack_trace);
+            assert_eq!("There was an issue compiling the provided script: SyntaxError: Unexpected token '{'", e.exception);
+        } else {
+            assert!(false, "I guess no error was throw...");
+        }
+    }
+
+    #[test]
+    fn it_can_eval_simple_script() {
+        let eval = V8Facade::new();
+        let result = eval.run("1+1;").unwrap();
+
+        if let Output::Result(r) = result {
+            if let JavaScriptResult::NumberValue(n) = r {
+                assert_eq!(2.0, n);                
+            } else {
+                assert!(false, "Wrong answer.");
+            }
+        } else {
+            assert!(false, "Welp.");
+        }
     }
 }

@@ -305,12 +305,13 @@ impl V8Facade {
             let isolate = &mut v8::Isolate::new(Default::default());
             let scope = &mut v8::HandleScope::new(isolate);
             let context = v8::Context::new(scope);
-            let scope = &mut v8::ContextScope::new(scope, context);
-
-            let global = context.global(scope);
 
             loop {
                 let input = rx_in.recv()?;
+                
+                let scope = &mut v8::ContextScope::new(scope, context);
+    
+                let global = context.global(scope);
 
                 match input {
                     Input::Source(code) => {
@@ -430,7 +431,9 @@ impl V8Facade {
 
 #[cfg(test)]
 mod tests {
-    use super::{JavaScriptResult, Output, V8Facade};
+    use rusty_v8::inspector::StringBuffer;
+
+    use super::{FunctionParameter, JavaScriptResult, Output, V8Facade};
 
     #[test]
     fn it_gets_error_with_bad_function_call() {
@@ -490,6 +493,24 @@ mod tests {
                 assert_eq!(2.0, n);                
             } else {
                 assert!(false, "Wrong answer.");
+            }
+        } else {
+            assert!(false, "Welp.");
+        }
+    }
+
+    #[test]
+    fn it_can_register_method_and_call_it() {
+        let eval = V8Facade::new();
+        
+        let _ = eval.run("function echo(val) { return val; }");
+        let result = eval.call("echo", vec![FunctionParameter::StringValue(String::from("hello world"))]).unwrap();
+
+        if let Output::Result(r) = result {
+            if let JavaScriptResult::StringValue(s) = r {
+                assert_eq!("hello world", s);
+            } else {
+                assert!(false, "Wrong.");
             }
         } else {
             assert!(false, "Welp.");

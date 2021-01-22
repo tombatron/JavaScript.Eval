@@ -10,6 +10,8 @@
     <repository type="git" url="https://github.com/tombatron/JavaScript.Eval" />
     
     <releaseNotes>Uses V8 version 8.8.278.2.</releaseNotes>
+
+    <license type="expression">MIT</license>
   </metadata>
   <files>
     <file src="../../../libs/runtimes/win-x64/native/javascript_eval_native.dll" target="runtimes/win-x64/native/" />

@@ -13,7 +13,7 @@ namespace JavaScript.Eval.TestConsole
 
                 engine.Eval("function echo (value) { return value; }");
 
-                for (var i = 0; i < 10_000; i++)
+                for (var i = 0; i < 100_000; i++)
                 {
                     var result = engine.Call<string>("echo", giantString);
 

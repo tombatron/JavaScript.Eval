@@ -307,10 +307,11 @@ impl V8Facade {
             let context = v8::Context::new(scope);
 
             loop {
+             
                 let input = rx_in.recv()?;
                 
                 let scope = &mut v8::ContextScope::new(scope, context);
-    
+                
                 let global = context.global(scope);
 
                 match input {
@@ -379,6 +380,8 @@ impl V8Facade {
                         tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
                     }
                 };
+
+                drop(scope);
             }
 
             unreachable!();

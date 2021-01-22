@@ -307,81 +307,81 @@ impl V8Facade {
             let context = v8::Context::new(scope);
 
             loop {
-             
                 let input = rx_in.recv()?;
-                
-                let scope = &mut v8::ContextScope::new(scope, context);
-                
-                let global = context.global(scope);
 
-                match input {
-                    Input::Source(code) => {
-                        let tc = &mut v8::TryCatch::new(scope);
-                        let result = V8Facade::eval(tc, code.as_str());
+                {
+                    let scope = &mut v8::ContextScope::new(scope, context);
 
-                        //V8Facade::send_result_to_output(result, tc, global, &tx_out);
-                        match result {
-                            Ok(result) => {
-                                V8Facade::send_result_to_output(result, tc, global, &tx_out);
-                            }
+                    let global = context.global(scope);
 
-                            Err(error) => {
-                                let error = JavaScriptError {
-                                    exception: error,
-                                    stack_trace: String::from(""),
-                                };
+                    match input {
+                        Input::Source(code) => {
+                            let tc = &mut v8::TryCatch::new(scope);
+                            let result = V8Facade::eval(tc, code.as_str());
 
-                                tx_out.send(Output::Error(error)).unwrap();
+                            //V8Facade::send_result_to_output(result, tc, global, &tx_out);
+                            match result {
+                                Ok(result) => {
+                                    V8Facade::send_result_to_output(result, tc, global, &tx_out);
+                                }
+
+                                Err(error) => {
+                                    let error = JavaScriptError {
+                                        exception: error,
+                                        stack_trace: String::from(""),
+                                    };
+
+                                    tx_out.send(Output::Error(error)).unwrap();
+                                }
                             }
                         }
-                    }
 
-                    Input::Function(func_args) => {
-                        let tc = &mut v8::TryCatch::new(scope);
-                        let result = V8Facade::call_func(tc, global, &func_args);
+                        Input::Function(func_args) => {
+                            let tc = &mut v8::TryCatch::new(scope);
+                            let result = V8Facade::call_func(tc, global, &func_args);
 
-                        match result {
-                            Ok(result) => {
-                                V8Facade::send_result_to_output(result, tc, global, &tx_out)
-                            }
+                            match result {
+                                Ok(result) => {
+                                    V8Facade::send_result_to_output(result, tc, global, &tx_out)
+                                }
 
-                            Err(error) => {
-                                let error = JavaScriptError {
-                                    exception: error,
-                                    stack_trace: String::from(""),
-                                };
+                                Err(error) => {
+                                    let error = JavaScriptError {
+                                        exception: error,
+                                        stack_trace: String::from(""),
+                                    };
 
-                                tx_out.send(Output::Error(error)).unwrap();
-                            }
-                        };
-                    }
+                                    tx_out.send(Output::Error(error)).unwrap();
+                                }
+                            };
+                        }
 
-                    Input::HeapReport => {
-                        let heap_stats = &mut v8::HeapStatistics::default();
+                        Input::HeapReport => {
+                            let heap_stats = &mut v8::HeapStatistics::default();
 
-                        scope.get_heap_statistics(heap_stats);
+                            scope.get_heap_statistics(heap_stats);
 
-                        let heap_stats = V8HeapStatistics {
-                            total_heap_size: heap_stats.total_heap_size(),
-                            total_heap_size_executable: heap_stats.total_heap_size_executable(),
-                            total_physical_size: heap_stats.total_physical_size(),
-                            total_available_size: heap_stats.total_available_size(),
-                            used_heap_size: heap_stats.used_heap_size(),
-                            heap_size_limit: heap_stats.heap_size_limit(),
-                            malloced_memory: heap_stats.malloced_memory(),
-                            does_zap_garbage: heap_stats.does_zap_garbage(),
-                            number_of_native_contexts: heap_stats.number_of_native_contexts(),
-                            number_of_detached_contexts: heap_stats.number_of_detached_contexts(),
-                            peak_malloced_memory: heap_stats.peak_malloced_memory(),
-                            used_global_handles_size: heap_stats.used_global_handles_size(),
-                            total_global_handles_size: heap_stats.total_global_handles_size(),
-                        };
+                            let heap_stats = V8HeapStatistics {
+                                total_heap_size: heap_stats.total_heap_size(),
+                                total_heap_size_executable: heap_stats.total_heap_size_executable(),
+                                total_physical_size: heap_stats.total_physical_size(),
+                                total_available_size: heap_stats.total_available_size(),
+                                used_heap_size: heap_stats.used_heap_size(),
+                                heap_size_limit: heap_stats.heap_size_limit(),
+                                malloced_memory: heap_stats.malloced_memory(),
+                                does_zap_garbage: heap_stats.does_zap_garbage(),
+                                number_of_native_contexts: heap_stats.number_of_native_contexts(),
+                                number_of_detached_contexts: heap_stats
+                                    .number_of_detached_contexts(),
+                                peak_malloced_memory: heap_stats.peak_malloced_memory(),
+                                used_global_handles_size: heap_stats.used_global_handles_size(),
+                                total_global_handles_size: heap_stats.total_global_handles_size(),
+                            };
 
-                        tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
-                    }
-                };
-
-                drop(scope);
+                            tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
+                        }
+                    };
+                }
             }
 
             unreachable!();
@@ -493,7 +493,7 @@ mod tests {
 
         if let Output::Result(r) = result {
             if let JavaScriptResult::NumberValue(n) = r {
-                assert_eq!(2.0, n);                
+                assert_eq!(2.0, n);
             } else {
                 assert!(false, "Wrong answer.");
             }
@@ -505,9 +505,14 @@ mod tests {
     #[test]
     fn it_can_register_method_and_call_it() {
         let eval = V8Facade::new();
-        
+
         let _ = eval.run("function echo(val) { return val; }");
-        let result = eval.call("echo", vec![FunctionParameter::StringValue(String::from("hello world"))]).unwrap();
+        let result = eval
+            .call(
+                "echo",
+                vec![FunctionParameter::StringValue(String::from("hello world"))],
+            )
+            .unwrap();
 
         if let Output::Result(r) = result {
             if let JavaScriptResult::StringValue(s) = r {

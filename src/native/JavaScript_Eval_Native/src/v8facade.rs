@@ -309,79 +309,76 @@ impl V8Facade {
             loop {
                 let input = rx_in.recv()?;
 
-                {
-                    let scope = &mut v8::ContextScope::new(scope, context);
+                let scope = &mut v8::HandleScope::new(scope);
+                let scope = &mut v8::ContextScope::new(scope, context);
 
-                    let global = context.global(scope);
+                let global = context.global(scope);
 
-                    match input {
-                        Input::Source(code) => {
-                            let tc = &mut v8::TryCatch::new(scope);
-                            let result = V8Facade::eval(tc, code.as_str());
+                match input {
+                    Input::Source(code) => {
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::eval(tc, code.as_str());
 
-                            //V8Facade::send_result_to_output(result, tc, global, &tx_out);
-                            match result {
-                                Ok(result) => {
-                                    V8Facade::send_result_to_output(result, tc, global, &tx_out);
-                                }
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_output(result, tc, global, &tx_out);
+                            }
 
-                                Err(error) => {
-                                    let error = JavaScriptError {
-                                        exception: error,
-                                        stack_trace: String::from(""),
-                                    };
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
 
-                                    tx_out.send(Output::Error(error)).unwrap();
-                                }
+                                tx_out.send(Output::Error(error)).unwrap();
                             }
                         }
+                    }
 
-                        Input::Function(func_args) => {
-                            let tc = &mut v8::TryCatch::new(scope);
-                            let result = V8Facade::call_func(tc, global, &func_args);
+                    Input::Function(func_args) => {
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::call_func(tc, global, &func_args);
 
-                            match result {
-                                Ok(result) => {
-                                    V8Facade::send_result_to_output(result, tc, global, &tx_out)
-                                }
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_output(result, tc, global, &tx_out)
+                            }
 
-                                Err(error) => {
-                                    let error = JavaScriptError {
-                                        exception: error,
-                                        stack_trace: String::from(""),
-                                    };
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
 
-                                    tx_out.send(Output::Error(error)).unwrap();
-                                }
-                            };
-                        }
+                                tx_out.send(Output::Error(error)).unwrap();
+                            }
+                        };
+                    }
 
-                        Input::HeapReport => {
-                            let heap_stats = &mut v8::HeapStatistics::default();
+                    Input::HeapReport => {
+                        let heap_stats = &mut v8::HeapStatistics::default();
 
-                            scope.get_heap_statistics(heap_stats);
+                        scope.get_heap_statistics(heap_stats);
 
-                            let heap_stats = V8HeapStatistics {
-                                total_heap_size: heap_stats.total_heap_size(),
-                                total_heap_size_executable: heap_stats.total_heap_size_executable(),
-                                total_physical_size: heap_stats.total_physical_size(),
-                                total_available_size: heap_stats.total_available_size(),
-                                used_heap_size: heap_stats.used_heap_size(),
-                                heap_size_limit: heap_stats.heap_size_limit(),
-                                malloced_memory: heap_stats.malloced_memory(),
-                                does_zap_garbage: heap_stats.does_zap_garbage(),
-                                number_of_native_contexts: heap_stats.number_of_native_contexts(),
-                                number_of_detached_contexts: heap_stats
-                                    .number_of_detached_contexts(),
-                                peak_malloced_memory: heap_stats.peak_malloced_memory(),
-                                used_global_handles_size: heap_stats.used_global_handles_size(),
-                                total_global_handles_size: heap_stats.total_global_handles_size(),
-                            };
+                        let heap_stats = V8HeapStatistics {
+                            total_heap_size: heap_stats.total_heap_size(),
+                            total_heap_size_executable: heap_stats.total_heap_size_executable(),
+                            total_physical_size: heap_stats.total_physical_size(),
+                            total_available_size: heap_stats.total_available_size(),
+                            used_heap_size: heap_stats.used_heap_size(),
+                            heap_size_limit: heap_stats.heap_size_limit(),
+                            malloced_memory: heap_stats.malloced_memory(),
+                            does_zap_garbage: heap_stats.does_zap_garbage(),
+                            number_of_native_contexts: heap_stats.number_of_native_contexts(),
+                            number_of_detached_contexts: heap_stats.number_of_detached_contexts(),
+                            peak_malloced_memory: heap_stats.peak_malloced_memory(),
+                            used_global_handles_size: heap_stats.used_global_handles_size(),
+                            total_global_handles_size: heap_stats.total_global_handles_size(),
+                        };
 
-                            tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
-                        }
-                    };
-                }
+                        tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
+                    }
+                };
             }
 
             unreachable!();
@@ -434,8 +431,6 @@ impl V8Facade {
 
 #[cfg(test)]
 mod tests {
-    use rusty_v8::inspector::StringBuffer;
-
     use super::{FunctionParameter, JavaScriptResult, Output, V8Facade};
 
     #[test]
@@ -524,4 +519,32 @@ mod tests {
             assert!(false, "Welp.");
         }
     }
+
+    // TODO: Come up with a good way to ensure that we're properly disposing of the internal handle scope. 
+    // #[test]
+    // fn it_wont_leak_memory_like_crazy() {
+    //     let eval = V8Facade::new();
+
+    //     let _ = eval.run("function echo(val) { return val; }").unwrap();
+
+    //     let before = eval.get_heap_statistics().unwrap();
+
+    //     for _ in 0..100000 {
+    //         let _ = eval.call("echo", vec![FunctionParameter::StringValue(String::from("The quick brown fox jumped over the lazy moon."))]).unwrap();
+
+    //         let current = eval.get_heap_statistics().unwrap();
+
+    //         let diff_vs_beginning = current.total_heap_size - before.total_heap_size;
+
+    //         println!("Heap Size: {}, Difference vs Beginngin: {}", eval.get_heap_statistics().unwrap().total_heap_size, diff_vs_beginning);
+    //     }
+
+    //     let after = eval.get_heap_statistics().unwrap();
+
+    //     let diff = after.total_heap_size - before.total_heap_size;
+
+    //     println!("{}", diff);
+
+    //     assert!(diff < 200,000);
+    // }
 }

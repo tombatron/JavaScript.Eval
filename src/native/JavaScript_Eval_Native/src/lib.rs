@@ -4,9 +4,11 @@ use std::{
     ptr,
 };
 
-use v8facade::{FunctionParameter, JavaScriptError, JavaScriptResult, Output, V8Facade};
+use function_parameter::FunctionParameter;
+use v8facade::{JavaScriptError, JavaScriptResult, Output, V8Facade};
 
 pub mod v8facade;
+pub mod function_parameter;
 
 #[repr(C)]
 #[derive(Debug)]

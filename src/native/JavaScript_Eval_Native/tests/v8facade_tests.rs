@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod v8facade_tests {
-    use javascript_eval_native::v8facade::{FunctionParameter, JavaScriptResult, Output, V8Facade};
+    use javascript_eval_native::{
+        function_parameter::FunctionParameter,
+        v8facade::{JavaScriptResult, Output, V8Facade},
+    };
 
     #[test]
     fn it_can_eval_simple_script() {

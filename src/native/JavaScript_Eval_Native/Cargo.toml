@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 name="javascript_eval_native"
-crate-type=["dylib"]
+crate-type=["rlib", "dylib"]
 
 [dependencies]
 rusty_v8 = "0.14.0"

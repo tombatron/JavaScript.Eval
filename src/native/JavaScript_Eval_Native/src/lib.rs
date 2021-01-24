@@ -6,7 +6,7 @@ use std::{
 
 use v8facade::{FunctionParameter, JavaScriptError, JavaScriptResult, Output, V8Facade};
 
-mod v8facade;
+pub mod v8facade;
 
 #[repr(C)]
 #[derive(Debug)]

@@ -184,7 +184,6 @@ pub extern "C" fn free_v8(v8_facade_ptr: *mut V8Facade) {
     }
 }
 
-// TODO: Going to want to put in some kind of struct here so that we can better describe the result.
 #[no_mangle]
 pub unsafe extern "C" fn exec(
     v8_facade_ptr: *mut V8Facade,

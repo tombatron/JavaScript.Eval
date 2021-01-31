@@ -1,14 +1,13 @@
+use std::ffi::{CStr, CString};
 use std::{os::raw::c_char, unreachable};
-use std::{
-    ffi::{CStr, CString},
-    ptr,
-};
 
 use function_parameter::FunctionParameter;
+use primitive_result::PrimitiveResult;
 use v8facade::{JavaScriptError, JavaScriptResult, Output, V8Facade};
 
-pub mod v8facade;
 pub mod function_parameter;
+pub mod primitive_result;
+pub mod v8facade;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -29,13 +28,6 @@ pub struct Primitive {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct UnsafeJavaScriptError {
-    pub exception: *mut c_char,
-    pub stack_trace: *mut c_char,
-}
-
-#[repr(C)]
-#[derive(Debug)]
 pub struct V8HeapStatistics {
     pub total_heap_size: usize,
     pub total_heap_size_executable: usize,
@@ -50,121 +42,6 @@ pub struct V8HeapStatistics {
     pub peak_malloced_memory: usize,
     pub used_global_handles_size: usize,
     pub total_global_handles_size: usize,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct PrimitiveResult {
-    pub number_value: f64,
-    pub number_value_set: bool,
-
-    pub bigint_value: i64,
-    pub bigint_value_set: bool,
-
-    pub bool_value: bool,
-    pub bool_value_set: bool,
-
-    pub string_value: *mut c_char,
-    pub array_value: *mut c_char,
-    pub object_value: *mut c_char,
-
-    pub error: *mut UnsafeJavaScriptError,
-}
-
-impl PrimitiveResult {
-
-    pub fn blank() -> PrimitiveResult {
-        PrimitiveResult {
-            number_value: 0.0,
-            number_value_set: false,
-            bigint_value: 0,
-            bigint_value_set: false,
-            bool_value: false,
-            bool_value_set: false,
-            string_value: ptr::null_mut(),
-            array_value: ptr::null_mut(),
-            object_value: ptr::null_mut(),
-            error: ptr::null_mut(),
-        }
-    }
-
-    pub fn create_for_number(number: f64) -> PrimitiveResult {
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            number_value: number,
-            number_value_set: true,
-            ..blank_result
-        }
-    }
-
-    pub fn create_for_bigint(bigint: i64) -> PrimitiveResult {
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            bigint_value: bigint,
-            bigint_value_set: true,
-            ..blank_result
-        }
-    }
-
-    pub fn create_for_bool(boolean: bool) -> PrimitiveResult {
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            bool_value: boolean,
-            bool_value_set: true,
-            ..blank_result
-        }
-    }
-
-    pub fn create_for_string(string: String) -> PrimitiveResult {
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            string_value: CString::new(string).unwrap().into_raw(),
-            ..blank_result
-        }
-    }
-
-    pub fn create_for_array(array: String) -> PrimitiveResult {
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            array_value: CString::new(array).unwrap().into_raw(),
-            ..blank_result
-        }
-    }
-
-    pub fn create_for_object(object: String) -> PrimitiveResult {
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            object_value: CString::new(object).unwrap().into_raw(),
-            ..blank_result
-        }
-    }
-
-    pub fn create_for_error(javascript_error: JavaScriptError) -> PrimitiveResult {
-        let exception = CString::new(javascript_error.exception).unwrap().into_raw();
-        let stack_trace = CString::new(javascript_error.stack_trace)
-            .unwrap()
-            .into_raw();
-
-        let unsafe_error = UnsafeJavaScriptError {
-            exception,
-            stack_trace,
-        };
-
-        let unsafe_error = Box::into_raw(Box::new(unsafe_error));
-
-        let blank_result = PrimitiveResult::blank();
-
-        PrimitiveResult {
-            error: unsafe_error,
-            ..blank_result
-        }
-    }
 }
 
 // http://jakegoulding.com/rust-ffi-omnibus/objects/
@@ -223,7 +100,7 @@ pub unsafe extern "C" fn exec(
         Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
 
         // You can't get heap statistics out of V8 by invoking script so this result is impossible.
-        Output::HeapStatistics(_) => unreachable!()
+        Output::HeapStatistics(_) => unreachable!(),
     }
 }
 
@@ -249,7 +126,10 @@ pub unsafe extern "C" fn call(
 
     let result = match instance.call(func_name, parameters) {
         Ok(o) => o,
-        Err(e) => Output::Error(JavaScriptError{exception : e, stack_trace:String::from("")}),
+        Err(e) => Output::Error(JavaScriptError {
+            exception: e,
+            stack_trace: String::from(""),
+        }),
     };
 
     match result {
@@ -276,13 +156,15 @@ pub unsafe extern "C" fn call(
 
         Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
 
-        // You can't get heap statistics by invoking a JavaScript function so this would be impossible. 
-        Output::HeapStatistics(_) => unreachable!()
+        // You can't get heap statistics by invoking a JavaScript function so this would be impossible.
+        Output::HeapStatistics(_) => unreachable!(),
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn get_heap_statistics(v8_facade_ptr: *mut V8Facade) -> *mut V8HeapStatistics {
+pub unsafe extern "C" fn get_heap_statistics(
+    v8_facade_ptr: *mut V8Facade,
+) -> *mut V8HeapStatistics {
     let instance = {
         assert!(!v8_facade_ptr.is_null());
         &mut *v8_facade_ptr

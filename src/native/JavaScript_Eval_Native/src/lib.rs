@@ -1,9 +1,9 @@
 use std::ffi::{CStr, CString};
-use std::{os::raw::c_char, unreachable};
+use std::os::raw::c_char;
 
 use function_parameter::FunctionParameter;
 use primitive_result::PrimitiveResult;
-use v8facade::{JavaScriptError, JavaScriptResult, Output, V8Facade};
+use v8facade::{JavaScriptError, Output, V8Facade};
 
 pub mod function_parameter;
 pub mod primitive_result;
@@ -75,33 +75,7 @@ pub unsafe extern "C" fn exec(
 
     let result = instance.run(script).unwrap();
 
-    match result {
-        Output::Result(r) => match r {
-            JavaScriptResult::StringValue(s) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_string(s)))
-            }
-            JavaScriptResult::NumberValue(n) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_number(n)))
-            }
-            JavaScriptResult::BigIntValue(i) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_bigint(i)))
-            }
-            JavaScriptResult::BoolValue(b) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_bool(b)))
-            }
-            JavaScriptResult::ArrayValue(av) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_array(av)))
-            }
-            JavaScriptResult::ObjectValue(ov) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_object(ov)))
-            }
-        },
-
-        Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
-
-        // You can't get heap statistics out of V8 by invoking script so this result is impossible.
-        Output::HeapStatistics(_) => unreachable!(),
-    }
+    PrimitiveResult::from_output(result).into_raw()
 }
 
 #[no_mangle]
@@ -132,33 +106,7 @@ pub unsafe extern "C" fn call(
         }),
     };
 
-    match result {
-        Output::Result(r) => match r {
-            JavaScriptResult::StringValue(s) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_string(s)))
-            }
-            JavaScriptResult::NumberValue(n) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_number(n)))
-            }
-            JavaScriptResult::BigIntValue(i) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_bigint(i)))
-            }
-            JavaScriptResult::BoolValue(b) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_bool(b)))
-            }
-            JavaScriptResult::ArrayValue(av) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_array(av)))
-            }
-            JavaScriptResult::ObjectValue(ov) => {
-                Box::into_raw(Box::new(PrimitiveResult::create_for_object(ov)))
-            }
-        },
-
-        Output::Error(e) => Box::into_raw(Box::new(PrimitiveResult::create_for_error(e))),
-
-        // You can't get heap statistics by invoking a JavaScript function so this would be impossible.
-        Output::HeapStatistics(_) => unreachable!(),
-    }
+    PrimitiveResult::from_output(result).into_raw()
 }
 
 #[no_mangle]
@@ -186,28 +134,7 @@ pub unsafe extern "C" fn free_string(string_ptr: *mut c_char) {
 
 #[no_mangle]
 pub unsafe extern "C" fn free_primitive_result(primitive_result_ptr: *mut PrimitiveResult) {
-    let primitive_result = Box::from_raw(primitive_result_ptr);
-
-    if !primitive_result.string_value.is_null() {
-        CString::from_raw(primitive_result.string_value);
-    }
-
-    if !primitive_result.array_value.is_null() {
-        CString::from_raw(primitive_result.array_value);
-    }
-
-    if !primitive_result.object_value.is_null() {
-        CString::from_raw(primitive_result.object_value);
-    }
-
-    if !primitive_result.error.is_null() {
-        let error = primitive_result.error;
-
-        CString::from_raw((*error).exception);
-        CString::from_raw((*error).stack_trace);
-
-        Box::from_raw(primitive_result.error);
-    }
+    PrimitiveResult::free_raw(primitive_result_ptr);
 }
 
 #[no_mangle]

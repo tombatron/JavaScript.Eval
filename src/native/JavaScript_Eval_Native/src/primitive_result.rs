@@ -1,6 +1,6 @@
 use std::{ffi::CString, os::raw::c_char, ptr};
 
-use crate::v8facade::JavaScriptError;
+use crate::v8facade::{JavaScriptError, JavaScriptResult, Output};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -121,5 +121,64 @@ impl PrimitiveResult {
             error: unsafe_error,
             ..blank_result
         }
+    }
+
+    pub fn from_output(output: Output) -> PrimitiveResult {
+        match output {
+            Output::Result(r) => match r {
+                JavaScriptResult::StringValue(s) => {
+                    PrimitiveResult::create_for_string(s)
+                }
+                JavaScriptResult::NumberValue(n) => {
+                    PrimitiveResult::create_for_number(n)
+                }
+                JavaScriptResult::BigIntValue(i) => {
+                    PrimitiveResult::create_for_bigint(i)
+                }
+                JavaScriptResult::BoolValue(b) => {
+                    PrimitiveResult::create_for_bool(b)
+                }
+                JavaScriptResult::ArrayValue(av) => {
+                    PrimitiveResult::create_for_array(av)
+                }
+                JavaScriptResult::ObjectValue(ov) => {
+                    PrimitiveResult::create_for_object(ov)
+                }
+            },
+    
+            Output::Error(e) => PrimitiveResult::create_for_error(e),
+    
+            // You can't get heap statistics out of V8 by invoking script so this result is impossible.
+            Output::HeapStatistics(_) => unreachable!(),
+        }        
+    }
+
+    pub fn into_raw(self: Self) -> *mut PrimitiveResult {
+        Box::into_raw(Box::new(self))
+    }
+
+    pub unsafe fn free_raw(raw_prim_result: *mut PrimitiveResult) {
+        let primitive_result = Box::from_raw(raw_prim_result);
+
+        if !primitive_result.string_value.is_null() {
+            CString::from_raw(primitive_result.string_value);
+        }
+    
+        if !primitive_result.array_value.is_null() {
+            CString::from_raw(primitive_result.array_value);
+        }
+    
+        if !primitive_result.object_value.is_null() {
+            CString::from_raw(primitive_result.object_value);
+        }
+    
+        if !primitive_result.error.is_null() {
+            let error = primitive_result.error;
+    
+            CString::from_raw((*error).exception);
+            CString::from_raw((*error).stack_trace);
+    
+            Box::from_raw(primitive_result.error);
+        }       
     }
 }

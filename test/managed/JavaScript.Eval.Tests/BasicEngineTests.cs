@@ -1,6 +1,7 @@
 using JavaScript.Eval.Exceptions;
 using System.Collections.Generic;
 using Xunit;
+using System.Threading.Tasks;
 
 namespace JavaScript.Eval.Tests
 {
@@ -12,6 +13,16 @@ namespace JavaScript.Eval.Tests
             using var engine = new JavaScriptEngine();
 
             var result = engine.Eval<int>("1+1;");
+
+            Assert.Equal(2, result);
+        }
+
+        [Fact]
+        public async Task ItCanExecuteSimpleScriptAsync()
+        {
+            using var engine = new JavaScriptEngine();
+
+            var result = await engine.EvalAsync<int>("1+1;");
 
             Assert.Equal(2, result);
         }

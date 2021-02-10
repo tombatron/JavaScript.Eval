@@ -2,6 +2,7 @@ using JavaScript.Eval.Exceptions;
 using System;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace JavaScript.Eval
 {
@@ -25,18 +26,12 @@ namespace JavaScript.Eval
     {
         private readonly JavaScriptEngineHandle _handle;
         private bool _isDisposed = false;
-        private string _message;
 
-        public delegate void Hello(IntPtr whatever);
+        public delegate void OnComplete(IntPtr result);
 
         public JavaScriptEngine()
-        { 
-            _handle = Native.get_v8(Something);
-        }
-
-        public void Something(IntPtr result)
         {
-            _message = Marshal.PtrToStringAuto(result);
+            _handle = Native.get_v8();
         }
 
         public TResult Eval<TResult>(string script)
@@ -68,6 +63,36 @@ namespace JavaScript.Eval
 
             Marshal.FreeCoTaskMem(scriptPointer);
             Native.free_primitive_result(primitiveResultPointer);
+        }
+
+        public Task<TResult> EvalAsync<TResult>(string script)
+        {
+            var resultSource = new TaskCompletionSource<TResult>();
+
+            var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
+
+            Native.begin_exec(_handle, scriptPointer, (p) =>
+            {
+                var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(p);
+
+                try
+                {
+                    var result = MapPrimitiveResult<TResult>(primitiveResult);
+
+                    resultSource.SetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    resultSource.SetException(ex);
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(scriptPointer);
+                    Native.free_primitive_result(p);
+                }
+            });
+
+            return resultSource.Task;
         }
 
         public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
@@ -169,13 +194,16 @@ namespace JavaScript.Eval
         private const string LIB_NAME = "javascript_eval_native";
 
         [DllImport(LIB_NAME)]
-        internal static extern JavaScriptEngineHandle get_v8([MarshalAs(UnmanagedType.FunctionPtr)]JavaScriptEngine.Hello callback);
+        internal static extern JavaScriptEngineHandle get_v8();
 
         [DllImport(LIB_NAME)]
         internal static extern void free_v8(IntPtr handle);
 
         [DllImport(LIB_NAME)]
         internal static extern IntPtr exec(JavaScriptEngineHandle handle, IntPtr script);
+
+        [DllImport(LIB_NAME)]
+        internal static extern void begin_exec(JavaScriptEngineHandle handle, IntPtr script, JavaScriptEngine.OnComplete completionCallback);
 
         [DllImport(LIB_NAME)]
         internal static extern IntPtr call(JavaScriptEngineHandle handle, IntPtr func_name, Primitive[] parameters, int parameterCount);

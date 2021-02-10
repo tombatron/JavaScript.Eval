@@ -91,7 +91,7 @@ pub unsafe extern "C" fn begin_exec(
         &mut *v8_facade_ptr
     };
 
-    instance.begin_run(script, on_complete);
+    instance.begin_run(script, on_complete).unwrap();
 }
 
 #[no_mangle]

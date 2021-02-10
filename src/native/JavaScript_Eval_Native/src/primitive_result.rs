@@ -153,6 +153,29 @@ impl PrimitiveResult {
         }        
     }
 
+    pub fn from_javascriptresult(result: JavaScriptResult) -> PrimitiveResult {
+        match result {
+            JavaScriptResult::ArrayValue(v) => {
+                PrimitiveResult::create_for_string(v)
+            }
+            JavaScriptResult::StringValue(v) => {
+                PrimitiveResult::create_for_string(v)
+            }
+            JavaScriptResult::NumberValue(v) => {
+                PrimitiveResult::create_for_number(v)
+            }
+            JavaScriptResult::BigIntValue(v) => {
+                PrimitiveResult::create_for_bigint(v)
+            }
+            JavaScriptResult::BoolValue(v) => {
+                PrimitiveResult::create_for_bool(v)
+            }
+            JavaScriptResult::ObjectValue(v) => {
+                PrimitiveResult::create_for_object(v)
+            }
+        }
+    }
+
     pub fn into_raw(self: Self) -> *mut PrimitiveResult {
         Box::into_raw(Box::new(self))
     }

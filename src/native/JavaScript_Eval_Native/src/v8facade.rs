@@ -1,4 +1,6 @@
-use std::{convert::TryFrom, sync::mpsc::RecvError, thread::JoinHandle};
+use std::{
+    convert::TryFrom, ffi::CString, os::raw::c_char, sync::mpsc::RecvError, thread::JoinHandle,
+};
 
 use std::{
     sync::{mpsc, Once},
@@ -7,7 +9,7 @@ use std::{
 
 use rusty_v8 as v8;
 
-use crate::{function_parameter::FunctionParameter, V8HeapStatistics};
+use crate::{V8HeapStatistics, function_parameter::FunctionParameter, primitive_result::PrimitiveResult};
 
 static INIT_PLATFORM: Once = Once::new();
 
@@ -22,6 +24,8 @@ enum Input {
     Source(String),
     Function(FunctionCall),
     HeapReport,
+
+    BeginSource(String, fn(*mut PrimitiveResult)),
 }
 
 pub enum Output {
@@ -214,6 +218,39 @@ impl V8Facade {
         }
     }
 
+    fn send_result_to_delegate(
+        result: Option<v8::Local<v8::Value>>,
+        scope: &mut v8::TryCatch<v8::HandleScope>,
+        global: v8::Local<v8::Object>,
+        on_complete: fn(*mut PrimitiveResult),
+    ) {
+        match result {
+            Some(v) => {
+                let result = JavaScriptResult::from(v, scope, global);
+                let result = PrimitiveResult::from_javascriptresult(result);
+
+                on_complete(result.into_raw());
+            }
+
+            None => {
+                let exception = scope.exception().unwrap();
+                let exception = exception.to_rust_string_lossy(scope);
+
+                let stack_trace = scope.stack_trace().unwrap();
+                let stack_trace = stack_trace.to_rust_string_lossy(scope);
+
+                let result = JavaScriptError {
+                    exception,
+                    stack_trace,
+                };
+
+                let result = PrimitiveResult::create_for_error(result);
+
+                on_complete(result.into_raw());
+            }
+        }
+    }
+
     fn json_parse<'s>(
         json_value: v8::Local<v8::Value>,
         scope: &mut v8::HandleScope<'s>,
@@ -275,7 +312,29 @@ impl V8Facade {
                                 tx_out.send(Output::Error(error)).unwrap();
                             }
                         }
-                    }
+                    },
+
+                    Input::BeginSource(code, on_complete) => {
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::eval(tc, code.as_str());
+
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_delegate(result, tc, global, on_complete);
+                            }
+
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
+
+                                let error = PrimitiveResult::create_for_error(error);
+
+                                on_complete(error.into_raw());
+                            }
+                        }
+                    },
 
                     Input::Function(func_args) => {
                         let tc = &mut v8::TryCatch::new(scope);
@@ -339,6 +398,14 @@ impl V8Facade {
             .map_err(|e| format!("{:?}", e))?;
 
         self.output.recv().map_err(|e| format!("{:?}", e))
+    }
+
+    pub fn begin_run<S: Into<String>>(&self, source: S, on_complete: fn(*mut PrimitiveResult)) -> Result<(), String> {
+        self.input
+            .send(Input::BeginSource(source.into(), on_complete))
+            .map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
     }
 
     pub fn call<S: Into<String>>(

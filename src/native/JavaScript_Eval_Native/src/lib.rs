@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::{convert::TryInto, ffi::{CStr, CString}};
 use std::os::raw::c_char;
 
 use function_parameter::FunctionParameter;
@@ -76,6 +76,22 @@ pub unsafe extern "C" fn exec(
     let result = instance.run(script).unwrap();
 
     PrimitiveResult::from_output(result).into_raw()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn begin_exec(
+    v8_facade_ptr: *mut V8Facade,
+    script: *const c_char,
+    on_complete: fn(*mut PrimitiveResult),
+) {
+    let script = CStr::from_ptr(script).to_string_lossy().into_owned();
+
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    instance.begin_run(script, on_complete);
 }
 
 #[no_mangle]

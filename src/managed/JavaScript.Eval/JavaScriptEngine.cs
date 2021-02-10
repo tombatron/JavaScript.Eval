@@ -25,10 +25,18 @@ namespace JavaScript.Eval
     {
         private readonly JavaScriptEngineHandle _handle;
         private bool _isDisposed = false;
+        private string _message;
+
+        public delegate void Hello(IntPtr whatever);
 
         public JavaScriptEngine()
+        { 
+            _handle = Native.get_v8(Something);
+        }
+
+        public void Something(IntPtr result)
         {
-            _handle = Native.get_v8();
+            _message = Marshal.PtrToStringAuto(result);
         }
 
         public TResult Eval<TResult>(string script)
@@ -135,7 +143,7 @@ namespace JavaScript.Eval
             if (primitiveResult.error != IntPtr.Zero)
             {
                 var error = Marshal.PtrToStructure<UnsafeJavaScriptError>(primitiveResult.error);
-                
+
                 exception = new JavaScriptException(error);
 
                 return true;
@@ -161,7 +169,7 @@ namespace JavaScript.Eval
         private const string LIB_NAME = "javascript_eval_native";
 
         [DllImport(LIB_NAME)]
-        internal static extern JavaScriptEngineHandle get_v8();
+        internal static extern JavaScriptEngineHandle get_v8([MarshalAs(UnmanagedType.FunctionPtr)]JavaScriptEngine.Hello callback);
 
         [DllImport(LIB_NAME)]
         internal static extern void free_v8(IntPtr handle);

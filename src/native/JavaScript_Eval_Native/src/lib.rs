@@ -1,8 +1,5 @@
+use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use std::{
-    convert::TryInto,
-    ffi::{CStr, CString},
-};
 
 use function_parameter::FunctionParameter;
 use primitive_result::PrimitiveResult;

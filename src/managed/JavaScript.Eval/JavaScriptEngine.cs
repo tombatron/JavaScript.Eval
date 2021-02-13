@@ -183,6 +183,31 @@ namespace JavaScript.Eval
             return heapStatistics;
         }
 
+        public Task<HeapStatistics> GetHeapStatisticsAsync()
+        {
+            var resultSource = new TaskCompletionSource<HeapStatistics>();
+
+            Native.begin_get_heap_statistics(_handle, (resultPointer) =>
+            {
+                try
+                {
+                    var heapStatistics = Marshal.PtrToStructure<HeapStatistics>(resultPointer);
+
+                    resultSource.SetResult(heapStatistics);
+                }
+                catch (Exception ex)
+                {
+                    resultSource.SetException(ex);
+                }
+                finally
+                {
+                    Native.free_heap_stats(resultPointer);
+                }
+            });
+
+            return resultSource.Task;
+        }
+
         private TResult MapPrimitiveResult<TResult>(PrimitiveResult primitiveResult)
         {
             if (primitiveResult.number_value_set > 0)

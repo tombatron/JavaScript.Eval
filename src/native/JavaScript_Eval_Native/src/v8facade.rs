@@ -29,6 +29,7 @@ enum Input {
 
     BeginSource(String, fn(*mut PrimitiveResult)),
     BeginFunction(FunctionCall, fn(*mut PrimitiveResult)),
+    BeginHeapReport(fn(*mut V8HeapStatistics)),
 }
 
 pub enum Output {
@@ -404,6 +405,32 @@ impl V8Facade {
 
                         tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
                     }
+
+                    Input::BeginHeapReport(on_complete) => {
+                        let heap_stats = &mut v8::HeapStatistics::default();
+
+                        scope.get_heap_statistics(heap_stats);
+
+                        let heap_stats = V8HeapStatistics {
+                            total_heap_size: heap_stats.total_heap_size(),
+                            total_heap_size_executable: heap_stats.total_heap_size_executable(),
+                            total_physical_size: heap_stats.total_physical_size(),
+                            total_available_size: heap_stats.total_available_size(),
+                            used_heap_size: heap_stats.used_heap_size(),
+                            heap_size_limit: heap_stats.heap_size_limit(),
+                            malloced_memory: heap_stats.malloced_memory(),
+                            does_zap_garbage: heap_stats.does_zap_garbage(),
+                            number_of_native_contexts: heap_stats.number_of_native_contexts(),
+                            number_of_detached_contexts: heap_stats.number_of_detached_contexts(),
+                            peak_malloced_memory: heap_stats.peak_malloced_memory(),
+                            used_global_handles_size: heap_stats.used_global_handles_size(),
+                            total_global_handles_size: heap_stats.total_global_handles_size(),
+                        };
+
+                        let heap_stats = Box::into_raw(Box::new(heap_stats));
+
+                        on_complete(heap_stats);
+                    }
                 };
             }
 
@@ -483,5 +510,13 @@ impl V8Facade {
         } else {
             Err(String::from("Couldn't get the heap statistics..."))
         }
+    }
+
+    pub fn begin_get_heap_statistics(&self, on_complete: fn(*mut V8HeapStatistics)) -> Result<(), String> {
+        self.input
+            .send(Input::BeginHeapReport(on_complete))
+            .map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
     }
 }

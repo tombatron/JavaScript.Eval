@@ -149,7 +149,9 @@ pub unsafe extern "C" fn begin_call(
         &mut *v8_facade_ptr
     };
 
-    instance.begin_call(func_name, parameters, on_complete).unwrap();
+    instance
+        .begin_call(func_name, parameters, on_complete)
+        .unwrap();
 }
 
 #[no_mangle]
@@ -164,6 +166,19 @@ pub unsafe extern "C" fn get_heap_statistics(
     let heap_stats = instance.get_heap_statistics().unwrap();
 
     Box::into_raw(Box::new(heap_stats))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn begin_get_heap_statistics(
+    v8_facade_ptr: *mut V8Facade,
+    on_complete: fn(*mut V8HeapStatistics),
+) {
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    instance.begin_get_heap_statistics(on_complete).unwrap();
 }
 
 #[no_mangle]

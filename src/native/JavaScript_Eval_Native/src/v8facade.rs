@@ -1,6 +1,4 @@
-use std::{
-    convert::TryFrom, ffi::CString, os::raw::c_char, sync::mpsc::RecvError, thread::JoinHandle,
-};
+use std::{convert::TryFrom, sync::mpsc::RecvError, thread::JoinHandle};
 
 use std::{
     sync::{mpsc, Once},
@@ -27,9 +25,9 @@ enum Input {
     Function(FunctionCall),
     HeapReport,
 
-    BeginSource(String, fn(*mut PrimitiveResult)),
-    BeginFunction(FunctionCall, fn(*mut PrimitiveResult)),
-    BeginHeapReport(fn(*mut V8HeapStatistics)),
+    BeginSource(String, extern fn(*mut PrimitiveResult)),
+    BeginFunction(FunctionCall, extern fn(*mut PrimitiveResult)),
+    BeginHeapReport(extern fn(*mut V8HeapStatistics)),
 }
 
 pub enum Output {
@@ -226,7 +224,7 @@ impl V8Facade {
         result: Option<v8::Local<v8::Value>>,
         scope: &mut v8::TryCatch<v8::HandleScope>,
         global: v8::Local<v8::Object>,
-        on_complete: fn(*mut PrimitiveResult),
+        on_complete: extern fn(*mut PrimitiveResult),
     ) {
         match result {
             Some(v) => {
@@ -379,7 +377,7 @@ impl V8Facade {
 
                                 on_complete(error.into_raw());
                             }
-                        };                        
+                        };
                     }
 
                     Input::HeapReport => {
@@ -455,7 +453,7 @@ impl V8Facade {
     pub fn begin_run<S: Into<String>>(
         &self,
         source: S,
-        on_complete: fn(*mut PrimitiveResult),
+        on_complete: extern fn(*mut PrimitiveResult),
     ) -> Result<(), String> {
         self.input
             .send(Input::BeginSource(source.into(), on_complete))
@@ -483,7 +481,7 @@ impl V8Facade {
         &self,
         func_name: S,
         func_params: Vec<FunctionParameter>,
-        on_complete: fn(*mut PrimitiveResult),
+        on_complete: extern fn(*mut PrimitiveResult),
     ) -> Result<(), String> {
         let call_spec = Input::BeginFunction(
             FunctionCall {
@@ -512,7 +510,10 @@ impl V8Facade {
         }
     }
 
-    pub fn begin_get_heap_statistics(&self, on_complete: fn(*mut V8HeapStatistics)) -> Result<(), String> {
+    pub fn begin_get_heap_statistics(
+        &self,
+        on_complete: extern fn(*mut V8HeapStatistics),
+    ) -> Result<(), String> {
         self.input
             .send(Input::BeginHeapReport(on_complete))
             .map_err(|e| format!("{:?}", e))?;

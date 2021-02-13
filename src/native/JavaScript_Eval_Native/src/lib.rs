@@ -82,7 +82,7 @@ pub unsafe extern "C" fn exec(
 pub unsafe extern "C" fn begin_exec(
     v8_facade_ptr: *mut V8Facade,
     script: *const c_char,
-    on_complete: fn(*mut PrimitiveResult),
+    on_complete: extern fn(*mut PrimitiveResult),
 ) {
     let script = CStr::from_ptr(script).to_string_lossy().into_owned();
 
@@ -131,7 +131,7 @@ pub unsafe extern "C" fn begin_call(
     func_name: *const c_char,
     parameters: *const Primitive,
     parameter_count: usize,
-    on_complete: fn(*mut PrimitiveResult),
+    on_complete: extern fn(*mut PrimitiveResult),
 ) {
     let func_name = CStr::from_ptr(func_name).to_string_lossy().into_owned();
 
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn get_heap_statistics(
 #[no_mangle]
 pub unsafe extern "C" fn begin_get_heap_statistics(
     v8_facade_ptr: *mut V8Facade,
-    on_complete: fn(*mut V8HeapStatistics),
+    on_complete: extern fn(*mut V8HeapStatistics),
 ) {
     let instance = {
         assert!(!v8_facade_ptr.is_null());

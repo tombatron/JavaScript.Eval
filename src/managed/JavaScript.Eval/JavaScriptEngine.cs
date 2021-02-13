@@ -49,6 +49,36 @@ namespace JavaScript.Eval
             return result;
         }
 
+        public Task<TResult> EvalAsync<TResult>(string script)
+        {
+            var resultSource = new TaskCompletionSource<TResult>();
+
+            var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
+
+            Native.begin_exec(_handle, scriptPointer, (resultPointer) =>
+            {
+                try
+                {
+                    var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(resultPointer);
+
+                    var result = MapPrimitiveResult<TResult>(primitiveResult);
+
+                    resultSource.SetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    resultSource.SetException(ex);
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(scriptPointer);
+                    Native.free_primitive_result(resultPointer);
+                }
+            });
+
+            return resultSource.Task;
+        }
+
         public void Eval(string script)
         {
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
@@ -65,21 +95,22 @@ namespace JavaScript.Eval
             Native.free_primitive_result(primitiveResultPointer);
         }
 
-        public Task<TResult> EvalAsync<TResult>(string script)
+        public Task EvalAsync(string script)
         {
-            var resultSource = new TaskCompletionSource<TResult>();
+            var resultSource = new TaskCompletionSource<Task>();
 
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
 
-            Native.begin_exec(_handle, scriptPointer, (p) =>
+            Native.begin_exec(_handle, scriptPointer, (resultPointer) =>
             {
-                var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(p);
-
                 try
                 {
-                    var result = MapPrimitiveResult<TResult>(primitiveResult);
+                    var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(resultPointer);
 
-                    resultSource.SetResult(result);
+                    if (TryCheckForException(primitiveResult, out var exception))
+                    {
+                        resultSource.SetException(exception);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -88,7 +119,7 @@ namespace JavaScript.Eval
                 finally
                 {
                     Marshal.FreeCoTaskMem(scriptPointer);
-                    Native.free_primitive_result(p);
+                    Native.free_primitive_result(resultPointer);
                 }
             });
 
@@ -203,10 +234,13 @@ namespace JavaScript.Eval
         internal static extern IntPtr exec(JavaScriptEngineHandle handle, IntPtr script);
 
         [DllImport(LIB_NAME)]
-        internal static extern void begin_exec(JavaScriptEngineHandle handle, IntPtr script, JavaScriptEngine.OnComplete completionCallback);
+        internal static extern void begin_exec(JavaScriptEngineHandle handle, IntPtr script, JavaScriptEngine.OnComplete on_complete);
 
         [DllImport(LIB_NAME)]
         internal static extern IntPtr call(JavaScriptEngineHandle handle, IntPtr func_name, Primitive[] parameters, int parameterCount);
+
+        [DllImport(LIB_NAME)]
+        internal static extern void begin_call(JavaScriptEngineHandle handle, IntPtr func_name, Primitive[] parameters, int parameterCount, JavaScriptEngine.OnComplete on_complete);
 
         [DllImport(LIB_NAME)]
         internal static extern void free_string(IntPtr stringPointer);
@@ -216,6 +250,9 @@ namespace JavaScript.Eval
 
         [DllImport(LIB_NAME)]
         internal static extern IntPtr get_heap_statistics(JavaScriptEngineHandle handle);
+
+        [DllImport(LIB_NAME)]
+        internal static extern void begin_get_heap_statistics(JavaScriptEngineHandle handle, JavaScriptEngine.OnComplete on_complete);
 
         [DllImport(LIB_NAME)]
         internal static extern void free_heap_stats(IntPtr statisticsHandle);

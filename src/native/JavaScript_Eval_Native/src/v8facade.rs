@@ -9,7 +9,9 @@ use std::{
 
 use rusty_v8 as v8;
 
-use crate::{V8HeapStatistics, function_parameter::FunctionParameter, primitive_result::PrimitiveResult};
+use crate::{
+    function_parameter::FunctionParameter, primitive_result::PrimitiveResult, V8HeapStatistics,
+};
 
 static INIT_PLATFORM: Once = Once::new();
 
@@ -26,6 +28,7 @@ enum Input {
     HeapReport,
 
     BeginSource(String, fn(*mut PrimitiveResult)),
+    BeginFunction(FunctionCall, fn(*mut PrimitiveResult)),
 }
 
 pub enum Output {
@@ -312,7 +315,7 @@ impl V8Facade {
                                 tx_out.send(Output::Error(error)).unwrap();
                             }
                         }
-                    },
+                    }
 
                     Input::BeginSource(code, on_complete) => {
                         let tc = &mut v8::TryCatch::new(scope);
@@ -334,7 +337,7 @@ impl V8Facade {
                                 on_complete(error.into_raw());
                             }
                         }
-                    },
+                    }
 
                     Input::Function(func_args) => {
                         let tc = &mut v8::TryCatch::new(scope);
@@ -354,6 +357,28 @@ impl V8Facade {
                                 tx_out.send(Output::Error(error)).unwrap();
                             }
                         };
+                    }
+
+                    Input::BeginFunction(func_args, on_complete) => {
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::call_func(tc, global, &func_args);
+
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_delegate(result, tc, global, on_complete)
+                            }
+
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
+
+                                let error = PrimitiveResult::create_for_error(error);
+
+                                on_complete(error.into_raw());
+                            }
+                        };                        
                     }
 
                     Input::HeapReport => {
@@ -400,7 +425,11 @@ impl V8Facade {
         self.output.recv().map_err(|e| format!("{:?}", e))
     }
 
-    pub fn begin_run<S: Into<String>>(&self, source: S, on_complete: fn(*mut PrimitiveResult)) -> Result<(), String> {
+    pub fn begin_run<S: Into<String>>(
+        &self,
+        source: S,
+        on_complete: fn(*mut PrimitiveResult),
+    ) -> Result<(), String> {
         self.input
             .send(Input::BeginSource(source.into(), on_complete))
             .map_err(|e| format!("{:?}", e))?;
@@ -421,6 +450,25 @@ impl V8Facade {
         self.input.send(call_spec).map_err(|e| format!("{:?}", e))?;
 
         self.output.recv().map_err(|e| format!("{:?}", e))
+    }
+
+    pub fn begin_call<S: Into<String>>(
+        &self,
+        func_name: S,
+        func_params: Vec<FunctionParameter>,
+        on_complete: fn(*mut PrimitiveResult),
+    ) -> Result<(), String> {
+        let call_spec = Input::BeginFunction(
+            FunctionCall {
+                name: func_name.into(),
+                arguments: func_params,
+            },
+            on_complete,
+        );
+
+        self.input.send(call_spec).map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
     }
 
     pub fn get_heap_statistics(&self) -> Result<V8HeapStatistics, String> {

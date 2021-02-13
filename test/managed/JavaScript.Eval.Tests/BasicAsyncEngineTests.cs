@@ -1,79 +1,80 @@
 using JavaScript.Eval.Exceptions;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace JavaScript.Eval.Tests
 {
-    public class BasicEngineTests
+    public class BasicAsyncEngineTests
     {
         [Fact]
-        public void ItCanExecuteSimpleScript()
+        public async Task ItCanExecuteSimpleScript_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            var result = engine.Eval<int>("1+1;");
+            var result = await engine.EvalAsync<int>("1+1;");
 
             Assert.Equal(2, result);
         }
 
         [Fact]
-        public void ItCanExecuteScriptWithNoResult()
+        public async Task ItCanExecuteScriptWithNoResult_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function throwMessage(message) { throw message; }");
+            await engine.EvalAsync("function throwMessage(message) { throw message; }");
 
-            var exception = Assert.Throws<JavaScriptException>(() => {
-                engine.Eval("throwMessage(\"Hello from the error!\");");
+            var exception = await Assert.ThrowsAsync<JavaScriptException>(async () => {
+                await engine.EvalAsync("throwMessage(\"Hello from the error!\");");
             });
 
             Assert.Equal("Hello from the error!", exception.Message);
         }
 
         [Fact]
-        public void ItCanExecuteASimpleScriptWithUnicode()
+        public async Task ItCanExecuteASimpleScriptWithUnicode_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            var result = engine.Eval<string>("\"😏\";");
+            var result = await engine.EvalAsync<string>("\"😏\";");
 
             Assert.Equal("😏", result);
         }
 
         [Fact]
-        public void ItCanCallFunction()
+        public async Task ItCanCallFunction_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function helloWorld() { return \"Hello World!\" }");
+            engine.Eval("function helloWorld() { return \"Hello World!\"; }");
 
-            var result = engine.Call<string>("helloWorld");
+            var result = await engine.CallAsync<string>("helloWorld");
 
             Assert.Equal("Hello World!", result);
         }
 
         [Fact]
-        public void ItCanCallAFunctionThatReturnsUnicode()
+        public async Task ItCanCallAFunctionThatReturnsUnicode_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function helloWorld() { return \"🐱‍👤\"; }");
+            await engine.EvalAsync("function helloWorld() { return \"🐱‍👤\"; }");
 
-            var result = engine.Call<string>("helloWorld");
+            var result = await engine.CallAsync<string>("helloWorld");
 
             Assert.Equal("🐱‍👤", result);
         }
 
         [Fact]
-        public void ItWillThrowJavaScriptException()
+        public async Task ItWillThrowJavaScriptException_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function thisShouldBreak() { return foo.bar.baz; }");
+            await engine.EvalAsync("function thisShouldBreak() { return foo.bar.baz; }");
 
-            var exception = Assert.Throws<JavaScriptException>(() =>
+            var exception = await Assert.ThrowsAsync<JavaScriptException>(async () =>
             {
-                engine.Eval<string>("thisShouldBreak();");
+                await engine.EvalAsync<string>("thisShouldBreak();");
             });
 
             Assert.Equal("ReferenceError: foo is not defined", exception.Message);
@@ -81,53 +82,53 @@ namespace JavaScript.Eval.Tests
         }
 
         [Fact]
-        public void ItWillThrowJavaScriptExceptionOnBadFunctionCall()
+        public async Task ItWillThrowJavaScriptExceptionOnBadFunctionCall_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function thisShouldBreak() { return foo.bar.baz; }");
+            await engine.EvalAsync("function thisShouldBreak() { return foo.bar.baz; }");
 
-            var exception = Assert.Throws<JavaScriptException>(() =>
+            var exception = await Assert.ThrowsAsync<JavaScriptException>(async () =>
             {
-                engine.Call<string>("thisShouldBreak");
+                await engine.CallAsync<string>("thisShouldBreak");
             });
 
             Assert.Equal("ReferenceError: foo is not defined", exception.Message);
             Assert.Equal("ReferenceError: foo is not defined\n    at thisShouldBreak (<anonymous>:1:30)", exception.StackTrace);
-        }
+        }    
 
         [Fact]
-        public void ItCanCallFunctionWithParameters()
+        public async Task ItCanCallFunctionWithParameters_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function add(x,y) { return x + y; }");
+            await engine.EvalAsync("function add(x,y) { return x + y; }");
 
-            var result = engine.Call<int>("add", 1, 2);
+            var result = await engine.CallAsync<int>("add", 1, 2);
 
             Assert.Equal(3, result);
         }
 
         [Fact]
-        public void ItCanCallFunctionWithObjectParameter()
+        public async Task ItCanCallFunctionWithObjectParameter_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function echo(obj) { return obj.Hello; }");
+            await engine.EvalAsync("function echo(obj) { return obj.Hello; }");
 
-            var result = engine.Call<string>("echo", Primitive.FromObject(new Message { Hello = "World!" }));
+            var result = await engine.CallAsync<string>("echo", Primitive.FromObject(new Message { Hello = "World!" }));
 
             Assert.Equal("World!", result);
         }
 
         [Fact]
-        public void ItWillThrowExceptionIfYouCallNonExistentFunction()
+        public async Task ItWillThrowExceptionIfYouCallNonExistentFunction_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            var exception = Assert.Throws<JavaScriptException>(() =>
+            var exception = await Assert.ThrowsAsync<JavaScriptException>(async () =>
             {
-                engine.Call<string>("thisDoesntEvenExist");
+                await engine.CallAsync<string>("thisDoesntEvenExist");
             });
 
             Assert.Equal("Couldn't resolve function `thisDoesntEvenExist`, V8 returned: 'undefined'", exception.Message);
@@ -135,35 +136,35 @@ namespace JavaScript.Eval.Tests
         }
 
         [Fact]
-        public void ItCanHandleArrays()
+        public async Task ItCanHandleArrays_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function getArray() { return [1,2,3];}");
+            await engine.EvalAsync("function getArray() { return [1,2,3];}");
 
-            var result = engine.Call<IEnumerable<int>>("getArray");
+            var result = await engine.CallAsync<IEnumerable<int>>("getArray");
 
             Assert.Equal(new[] { 1, 2, 3 }, result);
         }
 
         [Fact]
-        public void ItCanGetObject()
+        public async Task ItCanGetObject_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            engine.Eval("function getObject() { return {\"Hello\":\"World!\"};}");
+            await engine.EvalAsync("function getObject() { return {\"Hello\":\"World!\"};}");
 
-            var result = engine.Call<Message>("getObject");
+            var result = await engine.CallAsync<Message>("getObject");
 
             Assert.Equal("World!", result.Hello);
         }
 
         [Fact]
-        public void ItCanGetHeapStatistics()
+        public async Task ItCanGetHeapStatistics_Async()
         {
             using var engine = new JavaScriptEngine();
 
-            var heapStatistics = engine.GetHeapStatistics();
+            var heapStatistics = await engine.GetHeapStatisticsAsync();
 
             Assert.True(heapStatistics.used_heap_size > 0);
             Assert.True(heapStatistics.total_heap_size > 0);
@@ -180,6 +181,6 @@ namespace JavaScript.Eval.Tests
         public class Message
         {
             public string Hello { get; set; }
-        }
+        }            
     }
 }

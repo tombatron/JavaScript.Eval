@@ -142,6 +142,37 @@ namespace JavaScript.Eval
             return result;
         }
 
+        public Task<TResult> CallAsync<TResult>(string funcName, params Primitive[] funcParams)
+        {
+            var resultSource = new TaskCompletionSource<TResult>();
+
+            var funcNamePointer = Marshal.StringToCoTaskMemUTF8(funcName);
+
+            Native.begin_call(_handle, funcNamePointer, funcParams, funcParams.Length, (resultPointer) =>
+            {
+                try
+                {
+                    var primitiveResult = Marshal.PtrToStructure<PrimitiveResult>(resultPointer);
+
+                    var result = MapPrimitiveResult<TResult>(primitiveResult);
+
+                    resultSource.SetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    resultSource.SetException(ex);
+                }
+                finally
+                {
+                    Marshal.FreeCoTaskMem(funcNamePointer);
+                    Primitive.Free(funcParams);
+                    Native.free_primitive_result(resultPointer);
+                }
+            });
+
+            return resultSource.Task;
+        }
+
         public HeapStatistics GetHeapStatistics()
         {
             var heapStatisticsPointer = Native.get_heap_statistics(_handle);

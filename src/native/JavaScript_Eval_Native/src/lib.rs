@@ -1,5 +1,8 @@
-use std::{convert::TryInto, ffi::{CStr, CString}};
 use std::os::raw::c_char;
+use std::{
+    convert::TryInto,
+    ffi::{CStr, CString},
+};
 
 use function_parameter::FunctionParameter;
 use primitive_result::PrimitiveResult;
@@ -123,6 +126,30 @@ pub unsafe extern "C" fn call(
     };
 
     PrimitiveResult::from_output(result).into_raw()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn begin_call(
+    v8_facade_ptr: *mut V8Facade,
+    func_name: *const c_char,
+    parameters: *const Primitive,
+    parameter_count: usize,
+    on_complete: fn(*mut PrimitiveResult),
+) {
+    let func_name = CStr::from_ptr(func_name).to_string_lossy().into_owned();
+
+    let parameters: &[Primitive] = std::slice::from_raw_parts(parameters, parameter_count);
+    let parameters = parameters
+        .iter()
+        .map(|p| FunctionParameter::from(p))
+        .collect();
+
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    instance.begin_call(func_name, parameters, on_complete).unwrap();
 }
 
 #[no_mangle]

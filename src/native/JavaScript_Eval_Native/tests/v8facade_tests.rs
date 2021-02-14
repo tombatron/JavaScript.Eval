@@ -22,6 +22,21 @@ mod v8facade_tests {
     }
 
     #[test]
+    fn it_can_execute_script_with_no_result() {
+        let eval = V8Facade::new();
+
+        eval.run("function throwMessage(message) { throw message; }").unwrap();
+
+        let result = eval.run("throwMessage(\"Hello from the error!\");").unwrap();
+
+        if let Output::Error(r) = result {
+            assert_eq!("Hello from the error!", r.exception);
+        } else {
+            assert!(false, "Welp.");
+        }
+    }
+
+    #[test]
     fn it_can_register_method_and_call_it() {
         let eval = V8Facade::new();
 

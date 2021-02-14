@@ -25,9 +25,9 @@ enum Input {
     Function(FunctionCall),
     HeapReport,
 
-    BeginSource(String, extern fn(*mut PrimitiveResult)),
-    BeginFunction(FunctionCall, extern fn(*mut PrimitiveResult)),
-    BeginHeapReport(extern fn(*mut V8HeapStatistics)),
+    BeginSource(String, extern "C" fn(*mut PrimitiveResult)),
+    BeginFunction(FunctionCall, extern "C" fn(*mut PrimitiveResult)),
+    BeginHeapReport(extern "C" fn(*mut V8HeapStatistics)),
 }
 
 pub enum Output {
@@ -207,8 +207,11 @@ impl V8Facade {
                 let exception = scope.exception().unwrap();
                 let exception = exception.to_rust_string_lossy(scope);
 
-                let stack_trace = scope.stack_trace().unwrap();
-                let stack_trace = stack_trace.to_rust_string_lossy(scope);
+                let stack_trace = if let Some(stack_trace) = scope.stack_trace() {
+                    stack_trace.to_rust_string_lossy(scope)
+                } else {
+                    String::from("")
+                };
 
                 tx_out
                     .send(Output::Error(JavaScriptError {
@@ -224,7 +227,7 @@ impl V8Facade {
         result: Option<v8::Local<v8::Value>>,
         scope: &mut v8::TryCatch<v8::HandleScope>,
         global: v8::Local<v8::Object>,
-        on_complete: extern fn(*mut PrimitiveResult),
+        on_complete: extern "C" fn(*mut PrimitiveResult),
     ) {
         match result {
             Some(v) => {
@@ -238,8 +241,11 @@ impl V8Facade {
                 let exception = scope.exception().unwrap();
                 let exception = exception.to_rust_string_lossy(scope);
 
-                let stack_trace = scope.stack_trace().unwrap();
-                let stack_trace = stack_trace.to_rust_string_lossy(scope);
+                let stack_trace = if let Some(stack_trace) = scope.stack_trace() {
+                    stack_trace.to_rust_string_lossy(scope)
+                } else {
+                    String::from("")
+                };
 
                 let result = JavaScriptError {
                     exception,
@@ -453,7 +459,7 @@ impl V8Facade {
     pub fn begin_run<S: Into<String>>(
         &self,
         source: S,
-        on_complete: extern fn(*mut PrimitiveResult),
+        on_complete: extern "C" fn(*mut PrimitiveResult),
     ) -> Result<(), String> {
         self.input
             .send(Input::BeginSource(source.into(), on_complete))
@@ -481,7 +487,7 @@ impl V8Facade {
         &self,
         func_name: S,
         func_params: Vec<FunctionParameter>,
-        on_complete: extern fn(*mut PrimitiveResult),
+        on_complete: extern "C" fn(*mut PrimitiveResult),
     ) -> Result<(), String> {
         let call_spec = Input::BeginFunction(
             FunctionCall {
@@ -512,7 +518,7 @@ impl V8Facade {
 
     pub fn begin_get_heap_statistics(
         &self,
-        on_complete: extern fn(*mut V8HeapStatistics),
+        on_complete: extern "C" fn(*mut V8HeapStatistics),
     ) -> Result<(), String> {
         self.input
             .send(Input::BeginHeapReport(on_complete))

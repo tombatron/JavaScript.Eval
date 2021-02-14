@@ -97,7 +97,7 @@ namespace JavaScript.Eval
 
         public Task EvalAsync(string script)
         {
-            var resultSource = new TaskCompletionSource<Task>();
+            var resultSource = new TaskCompletionSource<bool>();
 
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
 
@@ -110,6 +110,10 @@ namespace JavaScript.Eval
                     if (TryCheckForException(primitiveResult, out var exception))
                     {
                         resultSource.SetException(exception);
+                    }
+                    else
+                    {
+                        resultSource.SetResult(true);
                     }
                 }
                 catch (Exception ex)

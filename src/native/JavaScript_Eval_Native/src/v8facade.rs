@@ -204,13 +204,16 @@ impl V8Facade {
             }
 
             None => {
-                let exception = scope.exception().unwrap();
-                let exception = exception.to_rust_string_lossy(scope);
+                let exception = if let Some(exception) = scope.exception() {
+                    exception.to_rust_string_lossy(scope)
+                } else {
+                    String::from("No exception message was present.")
+                };
 
                 let stack_trace = if let Some(stack_trace) = scope.stack_trace() {
                     stack_trace.to_rust_string_lossy(scope)
                 } else {
-                    String::from("")
+                    String::from("No stack trace was present.")
                 };
 
                 tx_out
@@ -238,13 +241,16 @@ impl V8Facade {
             }
 
             None => {
-                let exception = scope.exception().unwrap();
-                let exception = exception.to_rust_string_lossy(scope);
+                let exception = if let Some(exception) = scope.exception() {
+                    exception.to_rust_string_lossy(scope)
+                } else {
+                    String::from("No exception message was present.")
+                };
 
                 let stack_trace = if let Some(stack_trace) = scope.stack_trace() {
                     stack_trace.to_rust_string_lossy(scope)
                 } else {
-                    String::from("")
+                    String::from("No stack trace was present.")
                 };
 
                 let result = JavaScriptError {

@@ -156,7 +156,7 @@ impl PrimitiveResult {
     pub fn from_javascriptresult(result: JavaScriptResult) -> PrimitiveResult {
         match result {
             JavaScriptResult::ArrayValue(v) => {
-                PrimitiveResult::create_for_string(v)
+                PrimitiveResult::create_for_array(v)
             }
             JavaScriptResult::StringValue(v) => {
                 PrimitiveResult::create_for_string(v)

@@ -8,7 +8,7 @@ use std::{
 use rusty_v8 as v8;
 
 use crate::{
-    function_parameter::FunctionParameter, primitive_result::PrimitiveResult, V8HeapStatistics,
+    function_parameter::FunctionParameter, V8HeapStatistics,
 };
 
 static INIT_PLATFORM: Once = Once::new();
@@ -25,9 +25,9 @@ enum Input {
     Function(FunctionCall),
     HeapReport,
 
-    BeginSource(String, extern "C" fn(*mut PrimitiveResult)),
-    BeginFunction(FunctionCall, extern "C" fn(*mut PrimitiveResult)),
-    BeginHeapReport(extern "C" fn(*mut V8HeapStatistics)),
+    BeginSource(String, Box<dyn FnOnce(Output) + Send>),
+    BeginFunction(FunctionCall, Box<dyn FnOnce(Output) + Send>),
+    BeginHeapReport(Box<dyn FnOnce(V8HeapStatistics) + Send>),
 }
 
 pub enum Output {
@@ -226,18 +226,17 @@ impl V8Facade {
         }
     }
 
-    fn send_result_to_delegate(
+    fn send_result_to_delegate<F: FnOnce(Output) + 'static>(
         result: Option<v8::Local<v8::Value>>,
         scope: &mut v8::TryCatch<v8::HandleScope>,
         global: v8::Local<v8::Object>,
-        on_complete: extern "C" fn(*mut PrimitiveResult),
+        on_complete: F,
     ) {
         match result {
             Some(v) => {
                 let result = JavaScriptResult::from(v, scope, global);
-                let result = PrimitiveResult::from_javascriptresult(result);
 
-                on_complete(result.into_raw());
+                on_complete(Output::Result(result));
             }
 
             None => {
@@ -258,9 +257,7 @@ impl V8Facade {
                     stack_trace,
                 };
 
-                let result = PrimitiveResult::create_for_error(result);
-
-                on_complete(result.into_raw());
+                on_complete(Output::Error(result));
             }
         }
     }
@@ -343,9 +340,7 @@ impl V8Facade {
                                     stack_trace: String::from(""),
                                 };
 
-                                let error = PrimitiveResult::create_for_error(error);
-
-                                on_complete(error.into_raw());
+                                on_complete(Output::Error(error));
                             }
                         }
                     }
@@ -385,9 +380,7 @@ impl V8Facade {
                                     stack_trace: String::from(""),
                                 };
 
-                                let error = PrimitiveResult::create_for_error(error);
-
-                                on_complete(error.into_raw());
+                                on_complete(Output::Error(error));
                             }
                         };
                     }
@@ -437,7 +430,7 @@ impl V8Facade {
                             total_global_handles_size: heap_stats.total_global_handles_size(),
                         };
 
-                        let heap_stats = Box::into_raw(Box::new(heap_stats));
+                        // let heap_stats = Box::into_raw(Box::new(heap_stats));
 
                         on_complete(heap_stats);
                     }
@@ -462,13 +455,13 @@ impl V8Facade {
         self.output.recv().map_err(|e| format!("{:?}", e))
     }
 
-    pub fn begin_run<S: Into<String>>(
+    pub fn begin_run<S: Into<String>, F: FnOnce(Output) + Send + 'static>(
         &self,
         source: S,
-        on_complete: extern "C" fn(*mut PrimitiveResult),
+        on_complete: F,
     ) -> Result<(), String> {
         self.input
-            .send(Input::BeginSource(source.into(), on_complete))
+            .send(Input::BeginSource(source.into(), Box::new(on_complete)))
             .map_err(|e| format!("{:?}", e))?;
 
         Ok(())
@@ -489,18 +482,18 @@ impl V8Facade {
         self.output.recv().map_err(|e| format!("{:?}", e))
     }
 
-    pub fn begin_call<S: Into<String>>(
+    pub fn begin_call<S: Into<String>, F: FnOnce(Output) + Send + 'static>(
         &self,
         func_name: S,
         func_params: Vec<FunctionParameter>,
-        on_complete: extern "C" fn(*mut PrimitiveResult),
+        on_complete: F,
     ) -> Result<(), String> {
         let call_spec = Input::BeginFunction(
             FunctionCall {
                 name: func_name.into(),
                 arguments: func_params,
             },
-            on_complete,
+            Box::new(on_complete),
         );
 
         self.input.send(call_spec).map_err(|e| format!("{:?}", e))?;
@@ -522,12 +515,12 @@ impl V8Facade {
         }
     }
 
-    pub fn begin_get_heap_statistics(
+    pub fn begin_get_heap_statistics<F: FnOnce(V8HeapStatistics) + Send + 'static>(
         &self,
-        on_complete: extern "C" fn(*mut V8HeapStatistics),
+        on_complete: F,
     ) -> Result<(), String> {
         self.input
-            .send(Input::BeginHeapReport(on_complete))
+            .send(Input::BeginHeapReport(Box::new(on_complete)))
             .map_err(|e| format!("{:?}", e))?;
 
         Ok(())

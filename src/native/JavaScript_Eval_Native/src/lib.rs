@@ -82,7 +82,7 @@ pub unsafe extern "C" fn exec(
 pub unsafe extern "C" fn begin_exec(
     v8_facade_ptr: *mut V8Facade,
     script: *const c_char,
-    on_complete: extern fn(*mut PrimitiveResult),
+    on_complete: extern "C" fn(*mut PrimitiveResult),
 ) {
     let script = CStr::from_ptr(script).to_string_lossy().into_owned();
 
@@ -91,7 +91,13 @@ pub unsafe extern "C" fn begin_exec(
         &mut *v8_facade_ptr
     };
 
-    instance.begin_run(script, on_complete).unwrap();
+    instance
+        .begin_run(script, move |output| {
+            let result = PrimitiveResult::from_output(output);
+
+            on_complete(result.into_raw());
+        })
+        .unwrap();
 }
 
 #[no_mangle]
@@ -131,7 +137,7 @@ pub unsafe extern "C" fn begin_call(
     func_name: *const c_char,
     parameters: *const Primitive,
     parameter_count: usize,
-    on_complete: extern fn(*mut PrimitiveResult),
+    on_complete: extern "C" fn(*mut PrimitiveResult),
 ) {
     let func_name = CStr::from_ptr(func_name).to_string_lossy().into_owned();
 
@@ -147,7 +153,11 @@ pub unsafe extern "C" fn begin_call(
     };
 
     instance
-        .begin_call(func_name, parameters, on_complete)
+        .begin_call(func_name, parameters, move |output| {
+            let result = PrimitiveResult::from_output(output);
+
+            on_complete(result.into_raw());
+        })
         .unwrap();
 }
 
@@ -168,14 +178,19 @@ pub unsafe extern "C" fn get_heap_statistics(
 #[no_mangle]
 pub unsafe extern "C" fn begin_get_heap_statistics(
     v8_facade_ptr: *mut V8Facade,
-    on_complete: extern fn(*mut V8HeapStatistics),
+    on_complete: extern "C" fn(*mut V8HeapStatistics),
 ) {
     let instance = {
         assert!(!v8_facade_ptr.is_null());
         &mut *v8_facade_ptr
     };
 
-    instance.begin_get_heap_statistics(on_complete).unwrap();
+    instance.begin_get_heap_statistics(move |s| {
+        let result = Box::new(s);
+        let result = Box::into_raw(result);
+
+        on_complete(result);
+    }).unwrap();
 }
 
 #[no_mangle]

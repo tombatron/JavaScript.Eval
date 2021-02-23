@@ -2,7 +2,6 @@
 mod v8facade_tests {
     use javascript_eval_native::{
         function_parameter::FunctionParameter,
-        primitive_result::PrimitiveResult,
         v8facade::{JavaScriptResult, Output, V8Facade},
     };
 

@@ -48,7 +48,7 @@ pub enum JavaScriptResult {
     BoolValue(bool),
 
     // These will be tossed back as JSON strings.
-    ArrayValue(String),
+    ArrayValue(String),     
     ObjectValue(String),
 }
 

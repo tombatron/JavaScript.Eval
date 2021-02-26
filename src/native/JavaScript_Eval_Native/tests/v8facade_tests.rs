@@ -43,7 +43,7 @@ mod v8facade_tests {
     fn it_can_register_method_and_call_it() {
         let eval = V8Facade::new();
 
-        let _ = eval.run("function echo(val) { return val; }");
+        let _ = eval.run("function echo(val) { return val; }").unwrap();
         let result = eval
             .call(
                 "echo",

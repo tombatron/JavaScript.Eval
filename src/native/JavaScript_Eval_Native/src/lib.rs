@@ -79,6 +79,28 @@ pub unsafe extern "C" fn exec(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn begin_exec(
+    v8_facade_ptr: *mut V8Facade,
+    script: *const c_char,
+    on_complete: extern "C" fn(*mut PrimitiveResult),
+) {
+    let script = CStr::from_ptr(script).to_string_lossy().into_owned();
+
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    instance
+        .begin_run(script, move |output| {
+            let result = PrimitiveResult::from_output(output);
+
+            on_complete(result.into_raw());
+        })
+        .unwrap();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn call(
     v8_facade_ptr: *mut V8Facade,
     func_name: *const c_char,
@@ -110,6 +132,36 @@ pub unsafe extern "C" fn call(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn begin_call(
+    v8_facade_ptr: *mut V8Facade,
+    func_name: *const c_char,
+    parameters: *const Primitive,
+    parameter_count: usize,
+    on_complete: extern "C" fn(*mut PrimitiveResult),
+) {
+    let func_name = CStr::from_ptr(func_name).to_string_lossy().into_owned();
+
+    let parameters: &[Primitive] = std::slice::from_raw_parts(parameters, parameter_count);
+    let parameters = parameters
+        .iter()
+        .map(|p| FunctionParameter::from(p))
+        .collect();
+
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    instance
+        .begin_call(func_name, parameters, move |output| {
+            let result = PrimitiveResult::from_output(output);
+
+            on_complete(result.into_raw());
+        })
+        .unwrap();
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn get_heap_statistics(
     v8_facade_ptr: *mut V8Facade,
 ) -> *mut V8HeapStatistics {
@@ -121,6 +173,24 @@ pub unsafe extern "C" fn get_heap_statistics(
     let heap_stats = instance.get_heap_statistics().unwrap();
 
     Box::into_raw(Box::new(heap_stats))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn begin_get_heap_statistics(
+    v8_facade_ptr: *mut V8Facade,
+    on_complete: extern "C" fn(*mut V8HeapStatistics),
+) {
+    let instance = {
+        assert!(!v8_facade_ptr.is_null());
+        &mut *v8_facade_ptr
+    };
+
+    instance.begin_get_heap_statistics(move |s| {
+        let result = Box::new(s);
+        let result = Box::into_raw(result);
+
+        on_complete(result);
+    }).unwrap();
 }
 
 #[no_mangle]

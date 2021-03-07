@@ -4,7 +4,7 @@ using Xunit;
 
 namespace JavaScript.Eval.Tests
 {
-    public class BasicTests
+    public class BasicEngineTests
     {
         [Fact]
         public void ItCanExecuteSimpleScript()
@@ -14,6 +14,20 @@ namespace JavaScript.Eval.Tests
             var result = engine.Eval<int>("1+1;");
 
             Assert.Equal(2, result);
+        }
+
+        [Fact]
+        public void ItCanExecuteScriptWithNoResult()
+        {
+            using var engine = new JavaScriptEngine();
+
+            engine.Eval("function throwMessage(message) { throw message; }");
+
+            var exception = Assert.Throws<JavaScriptException>(() => {
+                engine.Eval("throwMessage(\"Hello from the error!\");");
+            });
+
+            Assert.Equal("Hello from the error!", exception.Message);
         }
 
         [Fact]

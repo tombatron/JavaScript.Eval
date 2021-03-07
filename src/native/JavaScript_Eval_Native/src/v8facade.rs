@@ -7,7 +7,9 @@ use std::{
 
 use rusty_v8 as v8;
 
-use crate::{function_parameter::FunctionParameter, V8HeapStatistics};
+use crate::{
+    function_parameter::FunctionParameter, V8HeapStatistics,
+};
 
 static INIT_PLATFORM: Once = Once::new();
 
@@ -22,6 +24,10 @@ enum Input {
     Source(String),
     Function(FunctionCall),
     HeapReport,
+
+    BeginSource(String, Box<dyn FnOnce(Output) + Send>),
+    BeginFunction(FunctionCall, Box<dyn FnOnce(Output) + Send>),
+    BeginHeapReport(Box<dyn FnOnce(V8HeapStatistics) + Send>),
 }
 
 pub enum Output {
@@ -42,7 +48,7 @@ pub enum JavaScriptResult {
     BoolValue(bool),
 
     // These will be tossed back as JSON strings.
-    ArrayValue(String),
+    ArrayValue(String),     
     ObjectValue(String),
 }
 
@@ -198,11 +204,17 @@ impl V8Facade {
             }
 
             None => {
-                let exception = scope.exception().unwrap();
-                let exception = exception.to_rust_string_lossy(scope);
+                let exception = if let Some(exception) = scope.exception() {
+                    exception.to_rust_string_lossy(scope)
+                } else {
+                    String::from("No exception message was present.")
+                };
 
-                let stack_trace = scope.stack_trace().unwrap();
-                let stack_trace = stack_trace.to_rust_string_lossy(scope);
+                let stack_trace = if let Some(stack_trace) = scope.stack_trace() {
+                    stack_trace.to_rust_string_lossy(scope)
+                } else {
+                    String::from("No stack trace was present.")
+                };
 
                 tx_out
                     .send(Output::Error(JavaScriptError {
@@ -210,6 +222,42 @@ impl V8Facade {
                         stack_trace,
                     }))
                     .unwrap();
+            }
+        }
+    }
+
+    fn send_result_to_delegate<F: FnOnce(Output) + 'static>(
+        result: Option<v8::Local<v8::Value>>,
+        scope: &mut v8::TryCatch<v8::HandleScope>,
+        global: v8::Local<v8::Object>,
+        on_complete: F,
+    ) {
+        match result {
+            Some(v) => {
+                let result = JavaScriptResult::from(v, scope, global);
+
+                on_complete(Output::Result(result));
+            }
+
+            None => {
+                let exception = if let Some(exception) = scope.exception() {
+                    exception.to_rust_string_lossy(scope)
+                } else {
+                    String::from("No exception message was present.")
+                };
+
+                let stack_trace = if let Some(stack_trace) = scope.stack_trace() {
+                    stack_trace.to_rust_string_lossy(scope)
+                } else {
+                    String::from("No stack trace was present.")
+                };
+
+                let result = JavaScriptError {
+                    exception,
+                    stack_trace,
+                };
+
+                on_complete(Output::Error(result));
             }
         }
     }
@@ -277,6 +325,26 @@ impl V8Facade {
                         }
                     }
 
+                    Input::BeginSource(code, on_complete) => {
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::eval(tc, code.as_str());
+
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_delegate(result, tc, global, on_complete);
+                            }
+
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
+
+                                on_complete(Output::Error(error));
+                            }
+                        }
+                    }
+
                     Input::Function(func_args) => {
                         let tc = &mut v8::TryCatch::new(scope);
                         let result = V8Facade::call_func(tc, global, &func_args);
@@ -293,6 +361,26 @@ impl V8Facade {
                                 };
 
                                 tx_out.send(Output::Error(error)).unwrap();
+                            }
+                        };
+                    }
+
+                    Input::BeginFunction(func_args, on_complete) => {
+                        let tc = &mut v8::TryCatch::new(scope);
+                        let result = V8Facade::call_func(tc, global, &func_args);
+
+                        match result {
+                            Ok(result) => {
+                                V8Facade::send_result_to_delegate(result, tc, global, on_complete)
+                            }
+
+                            Err(error) => {
+                                let error = JavaScriptError {
+                                    exception: error,
+                                    stack_trace: String::from(""),
+                                };
+
+                                on_complete(Output::Error(error));
                             }
                         };
                     }
@@ -320,6 +408,32 @@ impl V8Facade {
 
                         tx_out.send(Output::HeapStatistics(heap_stats)).unwrap();
                     }
+
+                    Input::BeginHeapReport(on_complete) => {
+                        let heap_stats = &mut v8::HeapStatistics::default();
+
+                        scope.get_heap_statistics(heap_stats);
+
+                        let heap_stats = V8HeapStatistics {
+                            total_heap_size: heap_stats.total_heap_size(),
+                            total_heap_size_executable: heap_stats.total_heap_size_executable(),
+                            total_physical_size: heap_stats.total_physical_size(),
+                            total_available_size: heap_stats.total_available_size(),
+                            used_heap_size: heap_stats.used_heap_size(),
+                            heap_size_limit: heap_stats.heap_size_limit(),
+                            malloced_memory: heap_stats.malloced_memory(),
+                            does_zap_garbage: heap_stats.does_zap_garbage(),
+                            number_of_native_contexts: heap_stats.number_of_native_contexts(),
+                            number_of_detached_contexts: heap_stats.number_of_detached_contexts(),
+                            peak_malloced_memory: heap_stats.peak_malloced_memory(),
+                            used_global_handles_size: heap_stats.used_global_handles_size(),
+                            total_global_handles_size: heap_stats.total_global_handles_size(),
+                        };
+
+                        // let heap_stats = Box::into_raw(Box::new(heap_stats));
+
+                        on_complete(heap_stats);
+                    }
                 };
             }
 
@@ -341,6 +455,18 @@ impl V8Facade {
         self.output.recv().map_err(|e| format!("{:?}", e))
     }
 
+    pub fn begin_run<S: Into<String>, F: FnOnce(Output) + Send + 'static>(
+        &self,
+        source: S,
+        on_complete: F,
+    ) -> Result<(), String> {
+        self.input
+            .send(Input::BeginSource(source.into(), Box::new(on_complete)))
+            .map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
+    }
+
     pub fn call<S: Into<String>>(
         &self,
         func_name: S,
@@ -356,6 +482,25 @@ impl V8Facade {
         self.output.recv().map_err(|e| format!("{:?}", e))
     }
 
+    pub fn begin_call<S: Into<String>, F: FnOnce(Output) + Send + 'static>(
+        &self,
+        func_name: S,
+        func_params: Vec<FunctionParameter>,
+        on_complete: F,
+    ) -> Result<(), String> {
+        let call_spec = Input::BeginFunction(
+            FunctionCall {
+                name: func_name.into(),
+                arguments: func_params,
+            },
+            Box::new(on_complete),
+        );
+
+        self.input.send(call_spec).map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
+    }
+
     pub fn get_heap_statistics(&self) -> Result<V8HeapStatistics, String> {
         self.input
             .send(Input::HeapReport)
@@ -368,5 +513,16 @@ impl V8Facade {
         } else {
             Err(String::from("Couldn't get the heap statistics..."))
         }
+    }
+
+    pub fn begin_get_heap_statistics<F: FnOnce(V8HeapStatistics) + Send + 'static>(
+        &self,
+        on_complete: F,
+    ) -> Result<(), String> {
+        self.input
+            .send(Input::BeginHeapReport(Box::new(on_complete)))
+            .map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
     }
 }

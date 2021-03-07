@@ -25,6 +25,6 @@ jobs:
       run: dotnet build --no-restore
     - name: Build Rust Dependencies
       run: "${GITHUB_WORKSPACE}/build-win.ps1"
-        shell: powershell
+      shell: powershell
     - name: Test
       run: dotnet test --verbosity normal

@@ -20,4 +20,4 @@ jobs:
     - name: Build NuGet Package
       run: "nuget pack ${GITHUB_WORKSPACE}/src/nuget/JavaScript.Eval.x64-Linux-Native/JavaScript.Eval.x64-Linux-Native.nuspec"
     - name: Publish NuGet Package
-      run: "nuget push *.nupkg --source https://api.nuget.org/v3/index.json"
+      run: "nuget push *.nupkg -source https://api.nuget.org/v3/index.json"

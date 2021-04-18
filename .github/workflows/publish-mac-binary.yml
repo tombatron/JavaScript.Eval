@@ -1,0 +1,25 @@
+name: Publish Mac Binary
+
+on:
+  workflow_dispatch:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: nuget/setup-nuget@v1
+      with:
+        nuget-api-key: ${{ secrets.NUGET_API_KEY }}
+        nuget-version: '5.x'
+    - name: Build Rust Dependencies
+      run: "${GITHUB_WORKSPACE}/build-mac.sh"
+    - name: Build NuGet Package
+      run: "nuget pack ${GITHUB_WORKSPACE}/src/nuget/JavaScript.Eval.x64-Mac-Native/JavaScript.Eval.x64-Mac-Native.nuspec"
+    - name: Publish NuGet Package
+      env:
+        api_key: ${{secrets.NUGET_API_KEY}}
+      run: "nuget push *.nupkg -Source https://api.nuget.org/v3/index.json -ApiKey $api_key"

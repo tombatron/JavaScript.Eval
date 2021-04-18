@@ -1,6 +1,7 @@
 using JavaScript.Eval.Exceptions;
 using System;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -36,6 +37,8 @@ namespace JavaScript.Eval
 
         public TResult Eval<TResult>(string script)
         {
+            CheckIsDisposed();
+
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
 
             var primitiveResultPointer = Native.exec(_handle, scriptPointer);
@@ -51,6 +54,8 @@ namespace JavaScript.Eval
 
         public Task<TResult> EvalAsync<TResult>(string script)
         {
+            CheckIsDisposed();
+
             var resultSource = new TaskCompletionSource<TResult>();
 
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
@@ -81,6 +86,8 @@ namespace JavaScript.Eval
 
         public void Eval(string script)
         {
+            CheckIsDisposed();
+
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
 
             var primitiveResultPointer = Native.exec(_handle, scriptPointer);
@@ -97,6 +104,8 @@ namespace JavaScript.Eval
 
         public Task EvalAsync(string script)
         {
+            CheckIsDisposed();
+
             var resultSource = new TaskCompletionSource<bool>();
 
             var scriptPointer = Marshal.StringToCoTaskMemUTF8(script);
@@ -132,6 +141,8 @@ namespace JavaScript.Eval
 
         public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
         {
+            CheckIsDisposed();
+
             var funcNamePointer = Marshal.StringToCoTaskMemUTF8(funcName);
 
             var primitiveResultPointer = Native.call(_handle, funcNamePointer, funcParams, funcParams.Length);
@@ -148,6 +159,8 @@ namespace JavaScript.Eval
 
         public Task<TResult> CallAsync<TResult>(string funcName, params Primitive[] funcParams)
         {
+            CheckIsDisposed();
+
             var resultSource = new TaskCompletionSource<TResult>();
 
             var funcNamePointer = Marshal.StringToCoTaskMemUTF8(funcName);
@@ -179,6 +192,8 @@ namespace JavaScript.Eval
 
         public HeapStatistics GetHeapStatistics()
         {
+            CheckIsDisposed();
+
             var heapStatisticsPointer = Native.get_heap_statistics(_handle);
             var heapStatistics = Marshal.PtrToStructure<HeapStatistics>(heapStatisticsPointer);
 
@@ -189,6 +204,8 @@ namespace JavaScript.Eval
 
         public Task<HeapStatistics> GetHeapStatisticsAsync()
         {
+            CheckIsDisposed();
+            
             var resultSource = new TaskCompletionSource<HeapStatistics>();
 
             Native.begin_get_heap_statistics(_handle, (resultPointer) =>
@@ -277,6 +294,14 @@ namespace JavaScript.Eval
             _handle.Dispose();
 
             _isDisposed = true;
+        }
+
+        private void CheckIsDisposed([CallerMemberName] string caller = "")
+        {
+            if (_isDisposed)
+            {
+                throw new JavaScriptEngineDisposedException($"`{caller}` was invoked by the JavaScript engine has been disposed.");
+            }
         }
     }
 

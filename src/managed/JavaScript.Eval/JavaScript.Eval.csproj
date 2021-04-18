@@ -5,9 +5,9 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Tom Hanks</Authors>
     <Company />
-    <AssemblyVersion>0.0.1.0</AssemblyVersion>
-    <FileVersion>0.0.1.0</FileVersion>
-    <Version>0.0.1</Version>
+    <AssemblyVersion>0.0.2.0</AssemblyVersion>
+    <FileVersion>0.0.2.0</FileVersion>
+    <Version>0.0.2</Version>
     <Description>A simple wrapper around Google Chrome's V8 JavaScript engine.</Description>
     <PackageRequiresLicenseAcceptance>false</PackageRequiresLicenseAcceptance>
     <RepositoryUrl>https://github.com/tombatron/JavaScript.Eval</RepositoryUrl>

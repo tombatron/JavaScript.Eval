@@ -23,10 +23,16 @@
       <Visible>False</Visible>
     </None>
 
-    <None Include="$(MSBuildThisFileDirectory)..\..\..\libs\runtimes\linux-x64\native\libjavascript_eval_native.so" Condition="'$(OS)' == 'Unix'">
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\libs\runtimes\linux-x64\native\libjavascript_eval_native.so" Condition="$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
       <Link>libjavascript_eval_native.so</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Visible>False</Visible>
     </None>
+
+    <None Include="$(MSBuildThisFileDirectory)..\..\..\libs\runtimes\osx-x64\native\libjavascript_eval_native.dylib" Condition="$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))'">
+      <Link>libjavascript_eval_native.dylib</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Visible>False</Visible>
+    </None> 
   </ItemGroup>
 </Project>

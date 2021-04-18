@@ -3,6 +3,7 @@ mod v8facade_memory_tests {
     use javascript_eval_native::{function_parameter::FunctionParameter, v8facade::V8Facade};
 
     #[test]
+    #[ignore]
     fn it_wont_leak_memory_like_crazy() {
         let eval = V8Facade::new();
 

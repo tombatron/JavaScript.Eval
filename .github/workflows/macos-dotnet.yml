@@ -17,11 +17,11 @@ jobs:
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: 3.1.x
+    - name: Build Rust Dependencies
+      run: "${GITHUB_WORKSPACE}/build-mac.sh"
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore
-    - name: Build Rust Dependencies
-      run: "${GITHUB_WORKSPACE}/build-mac.sh"
     - name: Test
       run: dotnet test --verbosity normal

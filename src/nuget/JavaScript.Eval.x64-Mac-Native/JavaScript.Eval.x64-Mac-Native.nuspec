@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>JavaScript.Eval.x64-Mac-Native</id>
+    <title>JavaScript.Eval.x64-Mac-Native</title>
+    <version>0.0.3</version>
+    <description>Required binary package for using JavaScript.Eval on MacOS.</description>
+    <authors>Owen Nelson, Tom Hanks</authors>
+    <projectUrl>https://github.com/tombatron/JavaScript.Eval</projectUrl>
+    <repository type="git" url="https://github.com/tombatron/JavaScript.Eval" />
+    
+    <releaseNotes>Uses V8 version 8.8.278.2.</releaseNotes>
+
+    <license type="expression">MIT</license>
+  </metadata>
+  <files>
+    <file src="../../../libs/runtimes/osx-x64/native/javascript_eval_native.dylib" target="runtimes/osx-x64/native/" />
+    <file src="JavaScript.Eval.x64-Mac-Native.targets" target="build" />
+  </files>
+</package>

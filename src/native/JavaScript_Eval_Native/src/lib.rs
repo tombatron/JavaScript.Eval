@@ -57,7 +57,11 @@ pub extern "C" fn free_v8(v8_facade_ptr: *mut V8Facade) {
     }
 
     unsafe {
-        Box::from_raw(v8_facade_ptr);
+        let v8_facade = Box::from_raw(v8_facade_ptr);
+
+        let _ = v8_facade.shutdown().unwrap();
+
+        let _ = v8_facade.handle.join().unwrap();
     }
 }
 
@@ -185,12 +189,14 @@ pub unsafe extern "C" fn begin_get_heap_statistics(
         &mut *v8_facade_ptr
     };
 
-    instance.begin_get_heap_statistics(move |s| {
-        let result = Box::new(s);
-        let result = Box::into_raw(result);
+    instance
+        .begin_get_heap_statistics(move |s| {
+            let result = Box::new(s);
+            let result = Box::into_raw(result);
 
-        on_complete(result);
-    }).unwrap();
+            on_complete(result);
+        })
+        .unwrap();
 }
 
 #[no_mangle]

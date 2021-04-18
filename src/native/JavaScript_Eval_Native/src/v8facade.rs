@@ -1,15 +1,10 @@
 use std::{convert::TryFrom, sync::mpsc::RecvError, thread::JoinHandle};
 
-use std::{
-    sync::{mpsc, Once},
-    unreachable,
-};
+use std::sync::{mpsc, Once};
 
 use rusty_v8 as v8;
 
-use crate::{
-    function_parameter::FunctionParameter, V8HeapStatistics,
-};
+use crate::{function_parameter::FunctionParameter, V8HeapStatistics};
 
 static INIT_PLATFORM: Once = Once::new();
 
@@ -28,6 +23,8 @@ enum Input {
     BeginSource(String, Box<dyn FnOnce(Output) + Send>),
     BeginFunction(FunctionCall, Box<dyn FnOnce(Output) + Send>),
     BeginHeapReport(Box<dyn FnOnce(V8HeapStatistics) + Send>),
+
+    Shutdown,
 }
 
 pub enum Output {
@@ -48,7 +45,7 @@ pub enum JavaScriptResult {
     BoolValue(bool),
 
     // These will be tossed back as JSON strings.
-    ArrayValue(String),     
+    ArrayValue(String),
     ObjectValue(String),
 }
 
@@ -104,7 +101,7 @@ pub struct JavaScriptError {
 pub struct V8Facade {
     input: mpsc::Sender<Input>,
     output: mpsc::Receiver<Output>,
-    _handle: JoinHandle<Result<(), RecvError>>, // TODO: Signal the managed code that something happend here...
+    pub handle: JoinHandle<Result<(), RecvError>>, // TODO: Signal the managed code that something happend here...
 }
 
 impl V8Facade {
@@ -284,7 +281,6 @@ impl V8Facade {
         scope.escape(parse_result)
     }
 
-    #[allow(unreachable_code)]
     pub fn new() -> Self {
         INIT_PLATFORM.call_once(init_platform);
 
@@ -434,16 +430,16 @@ impl V8Facade {
 
                         on_complete(heap_stats);
                     }
+
+                    Input::Shutdown => break Ok(()),
                 };
             }
-
-            unreachable!();
         });
 
         Self {
             input: tx_in,
             output: rx_out,
-            _handle: handle,
+            handle: handle,
         }
     }
 
@@ -521,6 +517,14 @@ impl V8Facade {
     ) -> Result<(), String> {
         self.input
             .send(Input::BeginHeapReport(Box::new(on_complete)))
+            .map_err(|e| format!("{:?}", e))?;
+
+        Ok(())
+    }
+
+    pub fn shutdown(&self) -> Result<(), String> {
+        self.input
+            .send(Input::Shutdown)
             .map_err(|e| format!("{:?}", e))?;
 
         Ok(())

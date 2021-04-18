@@ -16,7 +16,8 @@ jobs:
         nuget-api-key: ${{ secrets.NUGET_API_KEY }}
         nuget-version: '5.x'
     - name: Build Rust Dependencies
-      run: "${GITHUB_WORKSPACE}/build-nix.sh"
+      run: "./build-win.ps1"
+      shell: powershell
     - name: Build NuGet Package
       run: "nuget pack ${GITHUB_WORKSPACE}/src/nuget/JavaScript.Eval.x64-Windows-Native/JavaScript.Eval.x64-Windows-Native.nuspec"
     - name: Publish NuGet Package

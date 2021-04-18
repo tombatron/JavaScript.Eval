@@ -14,7 +14,7 @@
     <license type="expression">MIT</license>
   </metadata>
   <files>
-    <file src="../../../libs/runtimes/osx-x64/native/javascript_eval_native.dylib" target="runtimes/osx-x64/native/" />
+    <file src="../../../libs/runtimes/osx-x64/native/libjavascript_eval_native.dylib" target="runtimes/osx-x64/native/" />
     <file src="JavaScript.Eval.x64-Mac-Native.targets" target="build" />
   </files>
 </package>

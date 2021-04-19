@@ -35,6 +35,12 @@ namespace JavaScript.Eval
             _handle = Native.get_v8();
         }
 
+        /// <summary>
+        /// Execute ad-hoc JavaScript code.
+        /// </summary>
+        /// <param name="script">Valid JavaScript.</param>
+        /// <typeparam name="TResult">The expected type of the result.</typeparam>
+        /// <returns>An instance of the expected type. If the result is not a JavaScript primitive the result from the native library will be in JSON format and we'll deserialize that result into the provided type.</returns>
         public TResult Eval<TResult>(string script)
         {
             CheckIsDisposed();
@@ -52,6 +58,12 @@ namespace JavaScript.Eval
             return result;
         }
 
+        /// <summary>
+        /// Execute ad-hoc JavaScript code.
+        /// </summary>
+        /// <param name="script">Valid JavaScript.</param>
+        /// <typeparam name="TResult">The expected type of the result.</typeparam>
+        /// <returns>An instance of the expected type. If the result is not a JavaScript primitive the result from the native library will be in JSON format and we'll deserialize that result into the provided type.</returns>
         public Task<TResult> EvalAsync<TResult>(string script)
         {
             CheckIsDisposed();
@@ -84,6 +96,10 @@ namespace JavaScript.Eval
             return resultSource.Task;
         }
 
+        /// <summary>
+        /// Execute ad-hoc JavaScript code but handle no result.
+        /// </summary>
+        /// <param name="script">Valid JavaScript.</param>
         public void Eval(string script)
         {
             CheckIsDisposed();
@@ -102,6 +118,10 @@ namespace JavaScript.Eval
             Native.free_primitive_result(primitiveResultPointer);
         }
 
+        /// <summary>
+        /// Execute ad-hoc JavaScript code but handle no result.
+        /// </summary>
+        /// <param name="script">Valid JavaScript.</param>
         public Task EvalAsync(string script)
         {
             CheckIsDisposed();
@@ -139,6 +159,13 @@ namespace JavaScript.Eval
             return resultSource.Task;
         }
 
+        /// <summary>
+        /// Call a previously defined JavaScript function by name.
+        /// </summary>
+        /// <param name="funcName">Name of the previously defined JavaScript function.</param>
+        /// <param name="funcParams">Parameter array of parameters to pass to the previously defined JavaScript function.</param>
+        /// <typeparam name="TResult">The expected type of the result.</typeparam>
+        /// <returns>An instance of the expected type. If the result is not a JavaScript primitive the result from the native library will be in JSON format and we'll deserialize that result into the provided type.</returns>
         public TResult Call<TResult>(string funcName, params Primitive[] funcParams)
         {
             CheckIsDisposed();
@@ -157,6 +184,13 @@ namespace JavaScript.Eval
             return result;
         }
 
+        /// <summary>
+        /// Call a previously defined JavaScript function by name.
+        /// </summary>
+        /// <param name="funcName">Name of the previously defined JavaScript function.</param>
+        /// <param name="funcParams">Parameter array of parameters to pass to the previously defined JavaScript function.</param>
+        /// <typeparam name="TResult">The expected type of the result.</typeparam>
+        /// <returns>An instance of the expected type. If the result is not a JavaScript primitive the result from the native library will be in JSON format and we'll deserialize that result into the provided type.</returns>
         public Task<TResult> CallAsync<TResult>(string funcName, params Primitive[] funcParams)
         {
             CheckIsDisposed();
@@ -190,6 +224,10 @@ namespace JavaScript.Eval
             return resultSource.Task;
         }
 
+        /// <summary>
+        /// Call for the underlying V8 engine's internal heap statistics.
+        /// </summary>
+        /// <returns>A class representing the heap statistics for the underlying V8 engine.</returns>
         public HeapStatistics GetHeapStatistics()
         {
             CheckIsDisposed();
@@ -202,6 +240,10 @@ namespace JavaScript.Eval
             return heapStatistics;
         }
 
+        /// <summary>
+        /// Call for the underlying V8 engine's internal heap statistics.
+        /// </summary>
+        /// <returns>A class representing the heap statistics for the underlying V8 engine.</returns>
         public Task<HeapStatistics> GetHeapStatisticsAsync()
         {
             CheckIsDisposed();

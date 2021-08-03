@@ -1,6 +1,6 @@
 [package]
 name = "javascript_eval_native"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["tombatron <tommy.hanks@gmail.com>"]
 edition = "2018"
 

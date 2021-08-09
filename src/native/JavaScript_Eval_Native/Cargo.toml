@@ -1,6 +1,6 @@
 [package]
 name = "javascript_eval_native"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["tombatron <tommy.hanks@gmail.com>"]
 edition = "2018"
 
@@ -9,4 +9,4 @@ name="javascript_eval_native"
 crate-type=["rlib", "dylib"]
 
 [dependencies]
-rusty_v8 = "0.22.1"
+rusty_v8 = "0.25.3"

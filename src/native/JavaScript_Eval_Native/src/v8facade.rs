@@ -9,8 +9,7 @@ use crate::{function_parameter::FunctionParameter, V8HeapStatistics};
 static INIT_PLATFORM: Once = Once::new();
 
 fn init_platform() {
-    let platform = v8::new_default_platform().unwrap();
-
+    let platform = v8::new_default_platform(0, false).make_shared();
     v8::V8::initialize_platform(platform);
     v8::V8::initialize();
 }

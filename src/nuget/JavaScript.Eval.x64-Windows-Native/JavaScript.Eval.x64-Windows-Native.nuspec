@@ -3,7 +3,7 @@
   <metadata>
     <id>JavaScript.Eval.x64-Windows-Native</id>
     <title>JavaScript.Eval.x64-Windows-Native</title>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
     <description>Required binary package for using JavaScript.Eval on Windows.</description>
     <authors>Owen Nelson, Tom Hanks</authors>
     <projectUrl>https://github.com/tombatron/JavaScript.Eval</projectUrl>

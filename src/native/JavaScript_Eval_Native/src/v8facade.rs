@@ -2,7 +2,7 @@ use std::{convert::TryFrom, sync::mpsc::RecvError, thread::JoinHandle};
 
 use std::sync::{mpsc, Once};
 
-use rusty_v8 as v8;
+use v8;
 
 use crate::{function_parameter::FunctionParameter, V8HeapStatistics};
 

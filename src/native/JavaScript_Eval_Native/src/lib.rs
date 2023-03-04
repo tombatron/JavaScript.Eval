@@ -205,7 +205,7 @@ pub unsafe extern "C" fn free_string(string_ptr: *mut c_char) {
         return;
     }
 
-    CString::from_raw(string_ptr); // This should be OK because the string that we are freeing was created "by Rust".
+    drop(CString::from_raw(string_ptr))
 }
 
 #[no_mangle]
@@ -216,6 +216,6 @@ pub unsafe extern "C" fn free_primitive_result(primitive_result_ptr: *mut Primit
 #[no_mangle]
 pub unsafe extern "C" fn free_heap_stats(heap_stats_ptr: *mut V8HeapStatistics) {
     if !heap_stats_ptr.is_null() {
-        Box::from_raw(heap_stats_ptr);
+        drop(Box::from_raw(heap_stats_ptr));
     }
 }

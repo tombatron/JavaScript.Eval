@@ -184,24 +184,24 @@ impl PrimitiveResult {
         let primitive_result = Box::from_raw(raw_prim_result);
 
         if !primitive_result.string_value.is_null() {
-            CString::from_raw(primitive_result.string_value);
+            drop(CString::from_raw(primitive_result.string_value));
         }
     
         if !primitive_result.array_value.is_null() {
-            CString::from_raw(primitive_result.array_value);
+            drop(CString::from_raw(primitive_result.array_value));
         }
     
         if !primitive_result.object_value.is_null() {
-            CString::from_raw(primitive_result.object_value);
+            drop(CString::from_raw(primitive_result.object_value));
         }
     
         if !primitive_result.error.is_null() {
             let error = primitive_result.error;
     
-            CString::from_raw((*error).exception);
-            CString::from_raw((*error).stack_trace);
+            drop(CString::from_raw((*error).exception));
+            drop(CString::from_raw((*error).stack_trace));
     
-            Box::from_raw(primitive_result.error);
+            drop(Box::from_raw(primitive_result.error));
         }       
     }
 }

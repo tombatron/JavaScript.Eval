@@ -3,13 +3,13 @@
   <metadata>
     <id>JavaScript.Eval.x64-Mac-Native</id>
     <title>JavaScript.Eval.x64-Mac-Native</title>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
     <description>Required binary package for using JavaScript.Eval on MacOS.</description>
     <authors>Owen Nelson, Tom Hanks</authors>
     <projectUrl>https://github.com/tombatron/JavaScript.Eval</projectUrl>
     <repository type="git" url="https://github.com/tombatron/JavaScript.Eval" />
     
-    <releaseNotes>Uses V8 version: 9.3.345.3</releaseNotes>
+    <releaseNotes>Uses V8 version: 11.0.226.13</releaseNotes>
 
     <license type="expression">MIT</license>
   </metadata>
